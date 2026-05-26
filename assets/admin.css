@@ -1,0 +1,65 @@
+.pbd-exp-wrap .pbd-exp-status {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	background: #dcdcde;
+	color: #1d2327;
+}
+.pbd-exp-wrap .pbd-exp-status--draft     { background: #f0f0f1; color: #50575e; }
+.pbd-exp-wrap .pbd-exp-status--active    { background: #d1f0d8; color: #14532d; }
+.pbd-exp-wrap .pbd-exp-status--paused    { background: #fff3cd; color: #8a6d3b; }
+.pbd-exp-wrap .pbd-exp-status--concluded { background: #d0e5fb; color: #1c3b6e; }
+
+.pbd-exp-table-variants input[type="text"],
+.pbd-exp-table-metrics input[type="text"] {
+	width: 100%;
+}
+.pbd-exp-table-variants input[type="number"] {
+	width: 70px;
+}
+.pbd-exp-table-variants td,
+.pbd-exp-table-metrics td {
+	vertical-align: middle;
+}
+.pbd-exp-drag {
+	cursor: ns-resize;
+	color: #8c8f94;
+	font-size: 16px;
+	user-select: none;
+	text-align: center;
+}
+.pbd-exp-remove-row {
+	color: #b32d2e;
+	font-size: 18px;
+	line-height: 1;
+}
+
+.pbd-exp-date-window {
+	margin: 16px 0;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+.pbd-exp-date-window label { font-size: 13px; }
+
+.pbd-exp-winner-badge {
+	display: inline-block;
+	margin-left: 8px;
+	padding: 2px 6px;
+	background: #f0b800;
+	color: #1d2327;
+	border-radius: 3px;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.pbd-exp-results th,
+.pbd-exp-results td {
+	white-space: nowrap;
+}
