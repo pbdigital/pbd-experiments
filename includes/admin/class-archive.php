@@ -80,6 +80,12 @@ final class PBD_Exp_Admin_Archive {
 				<?php endif; ?>
 				<span class="actions">
 					<a href="<?php echo esc_url( $edit_url ); ?>" class="button button-small">Open</a>
+					<form method="post" style="display:inline;margin:0;">
+						<?php wp_nonce_field( PBD_Exp_Admin::NONCE_ACTION ); ?>
+						<input type="hidden" name="pbd_exp_action" value="clone_experiment">
+						<input type="hidden" name="experiment_id" value="<?php echo esc_attr( $experiment['id'] ); ?>">
+						<button type="submit" class="button button-small">Clone</button>
+					</form>
 				</span>
 			</h2>
 			<p class="pbd-exp-archive-meta">

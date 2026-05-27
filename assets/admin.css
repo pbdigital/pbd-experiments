@@ -969,3 +969,175 @@
 
 /* When user clicks the save bar's Save the inline summary should pull focus. */
 .pbd-exp-validation-summary:focus { outline: 2px solid var(--pbd-exp-danger); outline-offset: 2px; }
+
+/* ---------- Friction-audit follow-ups ---------- */
+
+/* Hide the Key columns by default (toggled by .pbd-exp-hide-keys on the table). */
+.pbd-exp-wrap .pbd-exp-table.pbd-exp-hide-keys .pbd-exp-keys-col { display: none; }
+
+.pbd-exp-wrap .pbd-exp-link-btn--header { margin-left: auto; }
+
+/* Control row visual treatment */
+.pbd-exp-variant-row--control td {
+	background: #fcfcfd;
+}
+.pbd-exp-control-pin {
+	color: #2271b1;
+	font-size: 10px;
+	line-height: 1;
+}
+.pbd-exp-control-dest__default {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+.pbd-exp-control-dest__pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	background: var(--pbd-exp-bg);
+	border: 1px solid var(--pbd-exp-border);
+	border-radius: 999px;
+	padding: 3px 10px;
+	font-size: 12px;
+	color: var(--pbd-exp-muted);
+}
+.pbd-exp-control-dest__pill code {
+	background: transparent;
+	padding: 0;
+	color: var(--pbd-exp-ink);
+	font-size: 12px;
+}
+.pbd-exp-control-dest__override {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+.pbd-exp-control-dest__override .pbd-exp-dest-cell {
+	flex: 1;
+	min-width: 200px;
+}
+
+/* Template picker */
+.pbd-exp-template-picker {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	width: 100%;
+}
+.pbd-exp-template-picker[hidden] { display: none !important; }
+.pbd-exp-template-select { width: 100%; max-width: 100%; }
+.pbd-exp-template-path-custom { width: 100%; }
+
+/* Concluded header */
+.pbd-exp-concluded-header {
+	background: #fffaf0;
+	border: 1px solid #f0c265;
+	border-radius: var(--pbd-exp-radius);
+	padding: 16px 18px;
+	margin: 16px 0;
+}
+.pbd-exp-concluded-header__row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-bottom: 14px;
+}
+.pbd-exp-concluded-header__meta {
+	color: var(--pbd-exp-muted);
+	font-size: 13px;
+}
+.pbd-exp-concluded-header__spacer { flex: 1; }
+.pbd-exp-winner-form {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+.pbd-exp-winner-form label { font-size: 13px; }
+.pbd-exp-winner-form select { min-width: 200px; }
+.pbd-exp-concluded-header__hint {
+	flex: 1;
+	color: var(--pbd-exp-muted);
+	font-size: 12px;
+}
+
+/* Locked config accordion */
+.pbd-exp-locked-config {
+	margin: 16px 0;
+	border: 1px solid var(--pbd-exp-border);
+	border-radius: var(--pbd-exp-radius);
+	background: var(--pbd-exp-bg);
+	padding: 4px 0;
+}
+.pbd-exp-locked-config > summary {
+	cursor: pointer;
+	padding: 10px 16px;
+	font-size: 13px;
+	color: var(--pbd-exp-muted);
+	list-style: none;
+	user-select: none;
+}
+.pbd-exp-locked-config > summary::marker { display: none; }
+.pbd-exp-locked-config > summary::-webkit-details-marker { display: none; }
+.pbd-exp-locked-config > summary:hover { color: var(--pbd-exp-ink); }
+.pbd-exp-locked-config[open] > summary { border-bottom: 1px solid var(--pbd-exp-border); }
+.pbd-exp-locked-config form { padding: 0 16px; }
+
+/* Dashboard "no data yet" panel replacing stat cards */
+.pbd-exp-stats-empty {
+	background: var(--pbd-exp-card-bg);
+	border: 1px dashed var(--pbd-exp-border-strong);
+	border-radius: var(--pbd-exp-radius);
+	padding: 28px 32px;
+	margin: 16px 0;
+	text-align: center;
+	color: var(--pbd-exp-muted);
+}
+.pbd-exp-stats-empty h3 {
+	margin: 0 0 6px;
+	font-size: 18px;
+	color: var(--pbd-exp-ink);
+}
+.pbd-exp-stats-empty p {
+	margin: 0 auto 12px;
+	max-width: 520px;
+}
+
+/* Per-metric inline snippet block */
+.pbd-exp-metric-snippet-row td {
+	background: #fafafb;
+	padding: 12px 14px !important;
+	border-bottom: 1px solid var(--pbd-exp-border) !important;
+}
+.pbd-exp-metric-snippet__lede {
+	margin: 0 0 4px;
+	font-size: 13px;
+	color: var(--pbd-exp-ink);
+}
+.pbd-exp-metric-snippet__how {
+	margin: 0 0 8px;
+	font-size: 12px;
+	color: var(--pbd-exp-muted);
+}
+.pbd-exp-metric-snippet .pbd-exp-snippet { margin: 4px 0 0; }
+
+/* Recent events collapsible */
+.pbd-exp-wrap details.pbd-exp-events-wrap > summary {
+	cursor: pointer;
+	list-style: none;
+	margin: 28px 0 8px;
+}
+.pbd-exp-wrap details.pbd-exp-events-wrap > summary::marker { display: none; }
+.pbd-exp-wrap details.pbd-exp-events-wrap > summary::-webkit-details-marker { display: none; }
+.pbd-exp-wrap details.pbd-exp-events-wrap > summary h2 {
+	display: inline-flex;
+	margin: 0;
+}
+
+/* Clone form button alignment in archive */
+.pbd-exp-archive-item .actions form { margin: 0; }
+

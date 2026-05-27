@@ -2,19 +2,33 @@
 	'use strict';
 
 	function nextIndex($table) {
-		return $table.find('tbody tr').length;
+		return $table.find('tbody tr.pbd-exp-variant-row, tbody tr.pbd-exp-metric-row').length;
 	}
 
 	function syncVariantTypeFields($row) {
-		var type = $row.find('.pbd-exp-variant-type:checked').val() || $row.find('.pbd-exp-variant-type').val();
-		var $template = $row.find('.pbd-exp-template-path');
+		var type = $row.find('.pbd-exp-variant-type:checked').val() || $row.find('.pbd-exp-variant-type').val() || 'template';
+		var $tmpl = $row.find('.pbd-exp-template-picker');
 		var $redirect = $row.find('.pbd-exp-redirect-url');
 		if (type === 'redirect') {
-			$template.attr('hidden', 'hidden');
+			$tmpl.attr('hidden', 'hidden');
 			$redirect.removeAttr('hidden');
 		} else {
 			$redirect.attr('hidden', 'hidden');
-			$template.removeAttr('hidden');
+			$tmpl.removeAttr('hidden');
+		}
+	}
+
+	function syncTemplatePicker($picker) {
+		var $select = $picker.find('.pbd-exp-template-select');
+		var $custom = $picker.find('.pbd-exp-template-path-custom');
+		var $hidden = $picker.find('.pbd-exp-template-path');
+		var val = $select.val();
+		if (val === '__custom__') {
+			$custom.removeAttr('hidden');
+			$hidden.val($custom.val() || '');
+		} else {
+			$custom.attr('hidden', 'hidden');
+			$hidden.val(val || '');
 		}
 	}
 
@@ -45,7 +59,6 @@
 			$bar.append($seg);
 		});
 
-		// Total-weight warning. We don't enforce 100, just flag when it's clearly off.
 		var $warn = $('#pbd-exp-split-warning');
 		if (total === 0) {
 			$warn.find('[data-total]').text('0');
@@ -79,7 +92,7 @@
 		var $preview = $('#pbd-exp-key-preview');
 		var $field = $('#pbd-exp-key-field');
 		if (!$badge.length) return;
-		if ($field.is(':visible')) return; // user is editing key directly
+		if ($field.is(':visible')) return;
 		var val = $key.val() || slugify($name.val());
 		if (val) {
 			$preview.text(val);
@@ -89,11 +102,34 @@
 		}
 	}
 
+	function updateControlTargetDisplay() {
+		var path = $('#target_path').val() || '/';
+		$('.pbd-exp-variant-row--control .pbd-exp-control-target').text(path);
+	}
+
+	function refreshMetricSnippets($row) {
+		var event = slugify($row.find('.pbd-exp-metric-event').val() || $row.find('.pbd-exp-metric-key').val() || $row.find('.pbd-exp-metric-name').val()) || 'event_name';
+		// Prefer the live input value; fall back to the table's initial data attribute, then to a sane placeholder.
+		var liveKey = ($('#experiment_key').val() || '').trim();
+		var nameSlug = slugify($('#name').val());
+		var exp = liveKey || nameSlug || $('#pbd-exp-metrics').data('experiment-key') || 'your_experiment_id';
+		var $snippetRow = $row.next('.pbd-exp-metric-snippet-row');
+		$snippetRow.find('.pbd-exp-snippet-event').text(event);
+		$snippetRow.find('.pbd-exp-snippet-exp').text(exp);
+
+		var trigger = $row.find('.pbd-exp-metric-trigger').val() || 'page';
+		$snippetRow.find('.pbd-exp-metric-snippet').each(function () {
+			if ($(this).data('snippet-for') === trigger) {
+				$(this).removeAttr('hidden');
+			} else {
+				$(this).attr('hidden', 'hidden');
+			}
+		});
+	}
+
 	function gatherValidationErrors() {
 		var errors = [];
 		if (!$('#name').val().trim()) errors.push('Name is required.');
-		var key = ($('#experiment_key').val() || '').trim();
-		if (!key && !$('#name').val().trim()) errors.push('Key is required.');
 		var target = ($('#target_path').val() || '').trim();
 		if (!target) errors.push('Target URL path is required (use / for the homepage).');
 		else if (target[0] !== '/') errors.push('Target URL must start with /.');
@@ -114,15 +150,68 @@
 		var $variants = $('#pbd-exp-variants');
 		var $metrics = $('#pbd-exp-metrics');
 
+		// ---------------- Variants ----------------
+
 		$variants.on('change', '.pbd-exp-variant-type', function () {
 			syncVariantTypeFields($(this).closest('tr'));
 		});
 
 		$variants.on('input change', '.pbd-exp-weight, .pbd-exp-variant-label', recomputeShares);
 
+		// Template-picker
+		$variants.on('change', '.pbd-exp-template-select', function () {
+			syncTemplatePicker($(this).closest('.pbd-exp-template-picker'));
+		});
+		$variants.on('input', '.pbd-exp-template-path-custom', function () {
+			var $picker = $(this).closest('.pbd-exp-template-picker');
+			$picker.find('.pbd-exp-template-path').val($(this).val());
+		});
+
+		// Control override toggle
+		$variants.on('click', '.pbd-exp-control-override-toggle', function () {
+			var $cell = $(this).closest('.pbd-exp-control-dest');
+			var action = $(this).data('action');
+			if (action === 'reveal') {
+				$cell.addClass('is-overridden');
+				$cell.find('.pbd-exp-control-dest__default').attr('hidden', 'hidden');
+				$cell.find('.pbd-exp-control-dest__override').removeAttr('hidden');
+				$cell.find('.pbd-exp-control-override-flag').val('1');
+			} else {
+				$cell.removeClass('is-overridden');
+				$cell.find('.pbd-exp-control-dest__default').removeAttr('hidden');
+				$cell.find('.pbd-exp-control-dest__override').attr('hidden', 'hidden');
+				$cell.find('.pbd-exp-control-override-flag').val('0');
+			}
+		});
+
+		// Toggle showing technical IDs (variants/metrics)
+		$('#pbd-exp-toggle-variant-keys').on('click', function () {
+			var $table = $('#pbd-exp-variants');
+			var showing = $table.toggleClass('pbd-exp-hide-keys').hasClass('pbd-exp-hide-keys') === false;
+			$(this).attr('aria-pressed', showing ? 'true' : 'false').text(showing ? 'Hide technical IDs' : 'Show technical IDs');
+		});
+		$('#pbd-exp-toggle-metric-keys').on('click', function () {
+			var $table = $('#pbd-exp-metrics');
+			var showing = $table.toggleClass('pbd-exp-hide-keys').hasClass('pbd-exp-hide-keys') === false;
+			$(this).attr('aria-pressed', showing ? 'true' : 'false').text(showing ? 'Hide technical IDs' : 'Show technical IDs');
+		});
+
+		// Auto-fill variant_key from label
+		$variants.on('input', '.pbd-exp-variant-label', function () {
+			var $row = $(this).closest('tr');
+			var $key = $row.find('.pbd-exp-variant-key');
+			if (!$key.data('touched')) {
+				$key.val(slugify($(this).val()));
+			}
+		});
+		$variants.on('input', '.pbd-exp-variant-key', function () {
+			$(this).data('touched', true);
+		});
+
 		if ($.fn.sortable) {
 			$variants.find('tbody').sortable({
 				handle: '.pbd-exp-drag',
+				items: '> tr.pbd-exp-variant-row:not(.pbd-exp-variant-row--control)',
 				placeholder: 'pbd-exp-sortable-placeholder',
 				helper: function (e, tr) {
 					var $orig = tr.children();
@@ -136,7 +225,7 @@
 			});
 		}
 
-		// Auto-fill experiment_key from name on the new-experiment screen.
+		// Experiment key badge auto-fill
 		var $keyField = $('#experiment_key');
 		var $nameField = $('#name');
 		if ($keyField.length && $nameField.length && !$keyField.prop('readonly')) {
@@ -147,48 +236,44 @@
 					$keyField.val(slugify($nameField.val()));
 				}
 				updateKeyBadge();
+				// Refresh metric snippets in case the experiment key changed
+				$('#pbd-exp-metrics .pbd-exp-metric-row').each(function () {
+					refreshMetricSnippets($(this));
+				});
 			});
 			updateKeyBadge();
 		}
 
-		// Reveal the key editor when the user clicks "edit" on the badge.
 		$('#pbd-exp-key-edit').on('click', function () {
 			$('#pbd-exp-key-field').removeAttr('hidden');
 			$('#pbd-exp-key-badge').attr('hidden', 'hidden');
 			$('#experiment_key').trigger('focus');
 		});
 
-		// Cookie days human translation.
+		// Target path -> update control row's display
+		$('#target_path').on('input change', updateControlTargetDisplay);
+
+		// Cookie days helper
 		$('#cookie_days').on('input change', updateCookieHelper);
 		updateCookieHelper();
 
-		// Logged-in users warning.
+		// Logged-in users warning
 		$('#include_logged_in').on('change', function () {
 			var $note = $('#pbd-exp-loggedin-warning');
 			if ($(this).is(':checked')) $note.removeAttr('hidden');
 			else $note.attr('hidden', 'hidden');
 		});
 
-		// Metric snippet help popover toggle.
-		$('#pbd-exp-metric-help-btn').on('click', function () {
-			var $pop = $('#pbd-exp-metric-help');
-			var open = !$pop.is(':visible');
-			if (open) $pop.removeAttr('hidden');
-			else $pop.attr('hidden', 'hidden');
-			$(this).attr('aria-expanded', open ? 'true' : 'false');
-		});
-		$('#pbd-exp-metric-help .pbd-exp-popover__close').on('click', function () {
-			$('#pbd-exp-metric-help').attr('hidden', 'hidden');
-			$('#pbd-exp-metric-help-btn').attr('aria-expanded', 'false');
-		});
-
+		// Add variant
 		$('#pbd-exp-add-variant').on('click', function () {
 			var i = nextIndex($variants);
-			var html = '<tr class="pbd-exp-variant-row" data-existing-id="0">' +
+			var templateOpts = $('#pbd-exp-template-options').html() || '<option value="">Default template</option>';
+			var defaultLabel = 'Variant ' + String.fromCharCode(64 + i + 1); // B, C, D...
+			var html = '<tr class="pbd-exp-variant-row" data-existing-id="0" data-is-control="0">' +
 				'<td class="pbd-exp-drag" title="Drag to reorder" aria-label="Drag to reorder"><span class="pbd-exp-drag__grip" aria-hidden="true"></span></td>' +
-				'<td><input type="hidden" name="variants[' + i + '][id]" value="0">' +
-					'<input type="text" name="variants[' + i + '][variant_key]" placeholder="variant_key"></td>' +
-				'<td><input type="text" name="variants[' + i + '][label]" placeholder="Label" class="pbd-exp-variant-label"></td>' +
+				'<td class="pbd-exp-keys-col"><input type="hidden" name="variants[' + i + '][id]" value="0">' +
+					'<input type="text" name="variants[' + i + '][variant_key]" placeholder="variant_' + String.fromCharCode(97 + i) + '" class="pbd-exp-variant-key"></td>' +
+				'<td><input type="text" name="variants[' + i + '][label]" placeholder="' + defaultLabel + '" class="pbd-exp-variant-label"></td>' +
 				'<td><input type="number" name="variants[' + i + '][weight]" min="0" value="50" class="pbd-exp-weight">' +
 					'<span class="pbd-exp-variant-share">0%</span></td>' +
 				'<td><div class="pbd-exp-segmented pbd-exp-variant-type-seg" role="radiogroup" aria-label="Destination type">' +
@@ -196,7 +281,11 @@
 					'<label><input type="radio" name="variants[' + i + '][variant_type]" value="redirect" class="pbd-exp-variant-type"><span>Redirect</span></label>' +
 				'</div></td>' +
 				'<td class="pbd-exp-dest-cell">' +
-					'<input type="text" name="variants[' + i + '][template_path]" placeholder="page-variant.php" class="pbd-exp-template-path">' +
+					'<span class="pbd-exp-template-picker">' +
+						'<select class="pbd-exp-template-select" data-row-index="' + i + '">' + templateOpts + '</select>' +
+						'<input type="text" class="pbd-exp-template-path-custom" placeholder="path/to/template.php" hidden>' +
+						'<input type="hidden" name="variants[' + i + '][template_path]" class="pbd-exp-template-path" value="">' +
+					'</span>' +
 					'<input type="text" name="variants[' + i + '][redirect_url]" placeholder="/variant-url/" class="pbd-exp-redirect-url" hidden>' +
 				'</td>' +
 				'<td class="col-remove"><button type="button" class="pbd-exp-remove-row" aria-label="Remove variant"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button></td>' +
@@ -205,41 +294,83 @@
 			recomputeShares();
 		});
 
+		// ---------------- Metrics ----------------
+
+		// Auto-fill metric_key and event_name from name
+		$metrics.on('input', '.pbd-exp-metric-name', function () {
+			var $row = $(this).closest('tr');
+			var $key = $row.find('.pbd-exp-metric-key');
+			var $event = $row.find('.pbd-exp-metric-event');
+			var slug = slugify($(this).val());
+			if (!$key.data('touched')) $key.val(slug);
+			if (!$event.data('touched')) $event.val(slug);
+			refreshMetricSnippets($row);
+		});
+		$metrics.on('input', '.pbd-exp-metric-key', function () {
+			$(this).data('touched', true);
+			var $row = $(this).closest('tr');
+			var $event = $row.find('.pbd-exp-metric-event');
+			if (!$event.data('touched')) $event.val(slugify($(this).val()));
+			refreshMetricSnippets($row);
+		});
+		$metrics.on('input', '.pbd-exp-metric-event', function () {
+			$(this).data('touched', true);
+			refreshMetricSnippets($(this).closest('tr'));
+		});
+
+		// Per-metric trigger dropdown
+		$metrics.on('change', '.pbd-exp-metric-trigger', function () {
+			refreshMetricSnippets($(this).closest('tr'));
+		});
+
+		// Add metric
 		$('#pbd-exp-add-metric').on('click', function () {
 			var i = nextIndex($metrics);
+			var expKey = $metrics.data('experiment-key') || $('#experiment_key').val() || slugify($('#name').val()) || 'your_experiment_id';
+			var event = 'event_name';
 			var html = '<tr class="pbd-exp-metric-row">' +
-				'<td><input type="hidden" name="metrics[' + i + '][id]" value="0">' +
-					'<input type="text" name="metrics[' + i + '][metric_key]" placeholder="metric_key"></td>' +
-				'<td><input type="text" name="metrics[' + i + '][name]" placeholder="Display Name"></td>' +
-				'<td><input type="text" name="metrics[' + i + '][event_name]" placeholder="event_name"></td>' +
+				'<td class="pbd-exp-keys-col"><input type="hidden" name="metrics[' + i + '][id]" value="0">' +
+					'<input type="text" name="metrics[' + i + '][metric_key]" placeholder="opt_in" class="pbd-exp-metric-key"></td>' +
+				'<td><input type="text" name="metrics[' + i + '][name]" placeholder="Display Name" class="pbd-exp-metric-name"></td>' +
+				'<td><select class="pbd-exp-metric-trigger">' +
+					'<option value="page">Visiting a specific page</option>' +
+					'<option value="form">Submitting a form</option>' +
+					'<option value="js">Custom JavaScript</option>' +
+				'</select></td>' +
+				'<td class="pbd-exp-keys-col"><input type="text" name="metrics[' + i + '][event_name]" placeholder="event_name" class="pbd-exp-metric-event"></td>' +
 				'<td class="col-active"><input type="checkbox" name="metrics[' + i + '][active]" value="1" checked></td>' +
 				'<td class="col-remove"><button type="button" class="pbd-exp-remove-row" aria-label="Remove metric"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button></td>' +
-				'</tr>';
+				'</tr>' +
+				'<tr class="pbd-exp-metric-snippet-row"><td colspan="6">' +
+					'<div class="pbd-exp-metric-snippet" data-snippet-for="page">' +
+						'<p class="pbd-exp-metric-snippet__lede"><strong>Paste this shortcode into the page that confirms the conversion</strong> (e.g. the thank-you page someone lands on after submitting).</p>' +
+						'<p class="pbd-exp-metric-snippet__how">In WordPress: edit the page → <em>+</em> → add a <strong>Shortcode</strong> block → paste → Save.</p>' +
+						'<div class="pbd-exp-snippet"><code class="pbd-exp-snippet-code">[pbd_experiment_event event=&quot;<span class="pbd-exp-snippet-event">' + event + '</span>&quot; experiment=&quot;<span class="pbd-exp-snippet-exp">' + expKey + '</span>&quot; once=&quot;1&quot;]</code><button type="button" class="copy-btn">Copy</button></div>' +
+					'</div>' +
+					'<div class="pbd-exp-metric-snippet" data-snippet-for="form" hidden>' +
+						'<p class="pbd-exp-metric-snippet__lede"><strong>Add these attributes to your form\'s HTML</strong> so it fires when someone submits it successfully.</p>' +
+						'<div class="pbd-exp-snippet"><code class="pbd-exp-snippet-code">&lt;form data-pbd-exp=&quot;<span class="pbd-exp-snippet-exp">' + expKey + '</span>&quot; data-pbd-event=&quot;<span class="pbd-exp-snippet-event">' + event + '</span>&quot;&gt; … &lt;/form&gt;</code><button type="button" class="copy-btn">Copy</button></div>' +
+					'</div>' +
+					'<div class="pbd-exp-metric-snippet" data-snippet-for="js" hidden>' +
+						'<p class="pbd-exp-metric-snippet__lede"><strong>Call this from JavaScript</strong> when the conversion happens (button click, ajax response, custom flow).</p>' +
+						'<div class="pbd-exp-snippet"><code class="pbd-exp-snippet-code">PBDExperiments.track(\'<span class="pbd-exp-snippet-event">' + event + '</span>\', { experiment: \'<span class="pbd-exp-snippet-exp">' + expKey + '</span>\', once: true });</code><button type="button" class="copy-btn">Copy</button></div>' +
+					'</div>' +
+				'</td></tr>';
 			$metrics.find('tbody').append(html);
 		});
 
-		// Mirror metric_key into event_name (until either has been edited manually)
-		$metrics.on('input', 'input[name$="[metric_key]"]', function () {
-			var $row = $(this).closest('tr');
-			var $event = $row.find('input[name$="[event_name]"]');
-			if (!$event.data('touched') && !$event.val()) {
-				$event.val(slugify($(this).val()));
-			}
-		});
-		$metrics.on('input', 'input[name$="[event_name]"]', function () {
-			$(this).data('touched', true);
-		});
-
+		// Remove row
 		$(document).on('click', '.pbd-exp-remove-row', function () {
 			var $row = $(this).closest('tr');
 			var inVariants = $row.closest('#pbd-exp-variants').length > 0;
+			// For metric rows, also remove the adjacent snippet row.
+			var $next = $row.next('.pbd-exp-metric-snippet-row');
 			$row.remove();
-			if (inVariants) {
-				recomputeShares();
-			}
+			if ($next.length) $next.remove();
+			if (inVariants) recomputeShares();
 		});
 
-		// Copy-to-clipboard for snippet helpers
+		// Copy snippets
 		$(document).on('click', '.pbd-exp-snippet .copy-btn', function () {
 			var $btn = $(this);
 			var text = $btn.closest('.pbd-exp-snippet').find('code').text();
@@ -252,7 +383,23 @@
 			}
 		});
 
-		// Inline validation summary on submit attempt.
+		// Concluded delete: require typing experiment key
+		$(document).on('submit', '.pbd-exp-delete-form[data-confirm-key]', function (e) {
+			var expected = $(this).data('confirm-key');
+			var prompt = $(this).data('confirm-prompt') || ('Type "' + expected + '" to confirm permanent deletion:');
+			var answer = window.prompt(prompt, '');
+			if (answer === null) {
+				e.preventDefault();
+				return false;
+			}
+			if (answer.trim() !== String(expected)) {
+				e.preventDefault();
+				window.alert('That did not match the experiment ID. Nothing was deleted.');
+				return false;
+			}
+		});
+
+		// Validation
 		$('#pbd-exp-form').on('submit', function (e) {
 			var errors = gatherValidationErrors();
 			var $summary = $('#pbd-exp-validation');
@@ -269,5 +416,8 @@
 
 		// Initial render
 		recomputeShares();
+		updateControlTargetDisplay();
+		$variants.find('.pbd-exp-template-picker').each(function () { syncTemplatePicker($(this)); });
+		$metrics.find('.pbd-exp-metric-row').each(function () { refreshMetricSnippets($(this)); });
 	});
 })(jQuery);

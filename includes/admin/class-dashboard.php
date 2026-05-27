@@ -129,6 +129,28 @@ final class PBD_Exp_Admin_Dashboard {
 		$primary = ! empty( $report['active_metrics'] ) ? $report['active_metrics'][0] : null;
 		$total_visitors = (int) $report['total_visitors'];
 
+		// Suppress stat cards when there's nothing to show (draft, or active with no traffic yet).
+		if ( 'draft' === $experiment['status'] || 0 === $total_visitors ) {
+			$edit_url = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&action=edit&id=' . (int) $experiment['id'] );
+			if ( 'draft' === $experiment['status'] ) {
+				?>
+				<div class="pbd-exp-stats-empty">
+					<h3>Not started yet</h3>
+					<p>Finish setup, then click <strong>Start experiment</strong> on the Edit screen. Numbers will appear here as visitors flow in.</p>
+					<a class="button button-primary" href="<?php echo esc_url( $edit_url ); ?>">Open Edit to start</a>
+				</div>
+				<?php
+			} else {
+				?>
+				<div class="pbd-exp-stats-empty">
+					<h3>No visitors yet</h3>
+					<p>The experiment is <?php echo esc_html( $experiment['status'] ); ?>, but nothing has been recorded in this window. Numbers will fill in as visitors hit the target page.</p>
+				</div>
+				<?php
+			}
+			return;
+		}
+
 		$total_primary_conversions = 0;
 		$primary_rate = 0.0;
 		if ( $primary ) {

@@ -76,6 +76,9 @@ final class PBD_Exp_Admin {
 			case 'transition_status':
 				PBD_Exp_Admin_Edit::handle_transition();
 				break;
+			case 'clone_experiment':
+				PBD_Exp_Admin_Edit::handle_clone();
+				break;
 		}
 	}
 
@@ -225,10 +228,10 @@ final class PBD_Exp_Admin {
 				<?php endif; ?>
 			<?php endif; ?>
 
-			<div class="pbd-exp-events-wrap">
-				<h2>Recent events <span class="hint">last 50 conversions across all experiments</span></h2>
+			<details class="pbd-exp-events-wrap">
+				<summary><h2>Recent activity <span class="hint">last 50 events across all experiments</span></h2></summary>
 				<?php $this->render_recent_events(); ?>
-			</div>
+			</details>
 		</div>
 		<?php
 	}
@@ -257,7 +260,10 @@ final class PBD_Exp_Admin {
 				echo '<div class="notice notice-error is-dismissible"><p>That status transition is not allowed.</p></div>';
 				break;
 			case 'missing':
-				echo '<div class="notice notice-error is-dismissible"><p>Key and name are required.</p></div>';
+				echo '<div class="notice notice-error is-dismissible"><p>ID and name are required.</p></div>';
+				break;
+			case 'cloned':
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment cloned. Edit and start when ready.</p></div>';
 				break;
 		}
 	}
