@@ -108,67 +108,183 @@ final class PBD_Exp_Admin {
 	}
 
 	private function render_list() {
-		$experiments = PBD_Exp_Repo::list_experiments( array( 'draft', 'active', 'paused' ) );
-		$message     = isset( $_GET['message'] ) ? sanitize_key( wp_unslash( $_GET['message'] ) ) : '';
+		$all_active_set = PBD_Exp_Repo::list_experiments( array( 'draft', 'active', 'paused' ) );
+
+		$counts = array(
+			'all'    => count( $all_active_set ),
+			'active' => 0,
+			'paused' => 0,
+			'draft'  => 0,
+		);
+		foreach ( $all_active_set as $e ) {
+			if ( isset( $counts[ $e['status'] ] ) ) {
+				$counts[ $e['status'] ]++;
+			}
+		}
+
+		$filter      = isset( $_GET['filter'] ) ? sanitize_key( wp_unslash( $_GET['filter'] ) ) : 'all';
+		$valid       = array( 'all', 'active', 'paused', 'draft' );
+		if ( ! in_array( $filter, $valid, true ) ) {
+			$filter = 'all';
+		}
+		$experiments = 'all' === $filter
+			? $all_active_set
+			: array_values( array_filter( $all_active_set, function ( $e ) use ( $filter ) { return $e['status'] === $filter; } ) );
+
+		$message  = isset( $_GET['message'] ) ? sanitize_key( wp_unslash( $_GET['message'] ) ) : '';
+		$base_url = admin_url( 'admin.php?page=' . self::MENU_SLUG );
 
 		?>
 		<div class="wrap pbd-exp-wrap">
 			<h1 class="wp-heading-inline">Experiments</h1>
-			<a class="page-title-action" href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&action=new' ) ); ?>">Add New</a>
+			<a class="page-title-action" href="<?php echo esc_url( $base_url . '&action=new' ); ?>">Add New</a>
 			<hr class="wp-header-end">
 
-			<?php if ( 'saved' === $message ) : ?>
-				<div class="notice notice-success is-dismissible"><p>Experiment saved.</p></div>
-			<?php elseif ( 'deleted' === $message ) : ?>
-				<div class="notice notice-success is-dismissible"><p>Experiment deleted.</p></div>
-			<?php elseif ( 'concluded' === $message ) : ?>
-				<div class="notice notice-success is-dismissible"><p>Experiment concluded. Snapshot frozen and moved to Past Experiments.</p></div>
-			<?php elseif ( 'invalid_transition' === $message ) : ?>
-				<div class="notice notice-error is-dismissible"><p>That status transition is not allowed.</p></div>
-			<?php elseif ( 'missing' === $message ) : ?>
-				<div class="notice notice-error is-dismissible"><p>Key and name are required.</p></div>
-			<?php endif; ?>
+			<?php $this->render_flash_notice( $message ); ?>
 
-			<?php if ( empty( $experiments ) ) : ?>
-				<div class="notice notice-info"><p>No experiments yet. <a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&action=new' ) ); ?>">Create your first one.</a></p></div>
+			<?php if ( 0 === $counts['all'] ) : ?>
+				<?php $this->render_first_run_hero(); ?>
 			<?php else : ?>
-				<table class="widefat striped">
-					<thead>
-						<tr>
-							<th>Name</th>
-							<th>Key</th>
-							<th>Status</th>
-							<th>Target</th>
-							<th>Variants</th>
-							<th>Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php foreach ( $experiments as $experiment ) :
-							$variants = PBD_Exp_Repo::get_variants( $experiment['id'] );
-							$variant_summary = array();
-							foreach ( $variants as $v ) {
-								$variant_summary[] = $v['label'] . ' (' . $v['weight'] . ')';
-							}
+				<div class="pbd-exp-filter-bar">
+					<?php
+					$tabs = array(
+						'all'    => 'All',
+						'active' => 'Active',
+						'paused' => 'Paused',
+						'draft'  => 'Drafts',
+					);
+					foreach ( $tabs as $key => $label ) :
+						$is_active = $filter === $key;
+						$url = 'all' === $key ? $base_url : $base_url . '&filter=' . $key;
 						?>
+						<a href="<?php echo esc_url( $url ); ?>" class="<?php echo $is_active ? 'is-active' : ''; ?>">
+							<?php echo esc_html( $label ); ?>
+							<span class="count"><?php echo (int) $counts[ $key ]; ?></span>
+						</a>
+					<?php endforeach; ?>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG . '-archive' ) ); ?>" style="margin-left:auto;">Past experiments &rarr;</a>
+				</div>
+
+				<?php if ( empty( $experiments ) ) : ?>
+					<div class="pbd-exp-empty">
+						<h3>No <?php echo esc_html( strtolower( $tabs[ $filter ] ) ); ?> experiments</h3>
+						<p>Switch filters above, or <a href="<?php echo esc_url( $base_url . '&action=new' ); ?>">add a new one</a>.</p>
+					</div>
+				<?php else : ?>
+					<table class="widefat striped pbd-exp-list-table">
+						<thead>
 							<tr>
-								<td><strong><?php echo esc_html( $experiment['name'] ); ?></strong></td>
-								<td><code><?php echo esc_html( $experiment['experiment_key'] ); ?></code></td>
-								<td><span class="pbd-exp-status pbd-exp-status--<?php echo esc_attr( $experiment['status'] ); ?>"><?php echo esc_html( ucfirst( $experiment['status'] ) ); ?></span></td>
-								<td><code><?php echo esc_html( $experiment['target_path'] ); ?></code></td>
-								<td><?php echo esc_html( implode( ', ', $variant_summary ) ); ?></td>
-								<td>
-									<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&action=dashboard&id=' . $experiment['id'] ) ); ?>">Dashboard</a> |
-									<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&action=edit&id=' . $experiment['id'] ) ); ?>">Edit</a>
-								</td>
+								<th class="col-name">Experiment</th>
+								<th>Status</th>
+								<th class="col-target">Target</th>
+								<th class="col-variants">Variants</th>
+								<th class="col-traffic">Visitors</th>
+								<th class="col-actions">&nbsp;</th>
 							</tr>
-						<?php endforeach; ?>
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							<?php foreach ( $experiments as $experiment ) :
+								$variants = PBD_Exp_Repo::get_variants( $experiment['id'] );
+								$variant_summary = array();
+								foreach ( $variants as $v ) {
+									$variant_summary[] = esc_html( $v['label'] );
+								}
+								$visitors = PBD_Exp_Repo::count_assignments(
+									(int) $experiment['id'],
+									null,
+									! empty( $experiment['started_at'] ) ? $experiment['started_at'] : null,
+									null
+								);
+								$dashboard_url = $base_url . '&action=dashboard&id=' . $experiment['id'];
+								$edit_url      = $base_url . '&action=edit&id=' . $experiment['id'];
+							?>
+								<tr>
+									<td class="col-name">
+										<a href="<?php echo esc_url( $dashboard_url ); ?>" class="row-link"><strong><?php echo esc_html( $experiment['name'] ); ?></strong></a>
+										<span class="pbd-exp-key"><code><?php echo esc_html( $experiment['experiment_key'] ); ?></code></span>
+									</td>
+									<td>
+										<span class="pbd-exp-status pbd-exp-status--<?php echo esc_attr( $experiment['status'] ); ?>"><?php echo esc_html( ucfirst( $experiment['status'] ) ); ?></span>
+									</td>
+									<td class="col-target"><code><?php echo esc_html( $experiment['target_path'] ); ?></code></td>
+									<td class="col-variants"><?php echo wp_kses_post( implode( ' &middot; ', $variant_summary ) ); ?></td>
+									<td class="col-traffic">
+										<strong><?php echo esc_html( number_format_i18n( $visitors ) ); ?></strong>
+										<?php if ( 'draft' === $experiment['status'] ) : ?>
+											<span style="color:#8c8f94;font-size:12px;"> (not started)</span>
+										<?php endif; ?>
+									</td>
+									<td class="col-actions">
+										<a class="button button-small" href="<?php echo esc_url( $dashboard_url ); ?>">Dashboard</a>
+										<a class="button button-small" href="<?php echo esc_url( $edit_url ); ?>">Edit</a>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				<?php endif; ?>
 			<?php endif; ?>
 
-			<h2 style="margin-top:32px;">Recent Events</h2>
-			<?php $this->render_recent_events(); ?>
+			<div class="pbd-exp-events-wrap">
+				<h2>Recent events <span class="hint">last 50 conversions across all experiments</span></h2>
+				<?php $this->render_recent_events(); ?>
+			</div>
+		</div>
+		<?php
+	}
+
+	private function render_flash_notice( $message ) {
+		switch ( $message ) {
+			case 'saved':
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment saved.</p></div>';
+				break;
+			case 'deleted':
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment deleted.</p></div>';
+				break;
+			case 'concluded':
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment concluded. Snapshot frozen and moved to Past Experiments.</p></div>';
+				break;
+			case 'started':
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment started. Visitors will be assigned variants on the next page load.</p></div>';
+				break;
+			case 'paused':
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment paused. Existing assignments are preserved.</p></div>';
+				break;
+			case 'resumed':
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment resumed.</p></div>';
+				break;
+			case 'invalid_transition':
+				echo '<div class="notice notice-error is-dismissible"><p>That status transition is not allowed.</p></div>';
+				break;
+			case 'missing':
+				echo '<div class="notice notice-error is-dismissible"><p>Key and name are required.</p></div>';
+				break;
+		}
+	}
+
+	private function render_first_run_hero() {
+		$new_url = admin_url( 'admin.php?page=' . self::MENU_SLUG . '&action=new' );
+		?>
+		<div class="pbd-exp-hero">
+			<h2>Run your first split test</h2>
+			<p>PBD Experiments assigns visitors to variants of a page, records assignments and conversion events, and reports the results. Each experiment targets a single URL path on this site.</p>
+
+			<div class="pbd-exp-hero__steps">
+				<div class="pbd-exp-hero__step">
+					<strong><span class="pbd-exp-hero__step-num">1</span>Create the experiment</strong>
+					<span>Pick the target path, name your variants, and choose whether each one swaps the template or redirects to another URL.</span>
+				</div>
+				<div class="pbd-exp-hero__step">
+					<strong><span class="pbd-exp-hero__step-num">2</span>Add a conversion metric</strong>
+					<span>Fire a JS event, drop the shortcode, or add <code>data-pbd-exp</code>/<code>data-pbd-event</code> attributes to a form. Each metric is one event name.</span>
+				</div>
+				<div class="pbd-exp-hero__step">
+					<strong><span class="pbd-exp-hero__step-num">3</span>Start it and watch the dashboard</strong>
+					<span>Move it from Draft to Active. Visitors get a sticky variant via cookie, results land on the dashboard live, and you conclude when ready.</span>
+				</div>
+			</div>
+
+			<a href="<?php echo esc_url( $new_url ); ?>" class="button button-primary button-hero">Create your first experiment</a>
 		</div>
 		<?php
 	}
@@ -176,7 +292,12 @@ final class PBD_Exp_Admin {
 	private function render_recent_events() {
 		$events = PBD_Exp_Repo::recent_events( 50 );
 		if ( empty( $events ) ) {
-			echo '<p>No events recorded yet.</p>';
+			?>
+			<div class="pbd-exp-empty">
+				<h3>No events recorded yet</h3>
+				<p>Once an active experiment starts firing conversion events from the page, the most recent 50 will appear here so you can confirm tracking is wired up correctly.</p>
+			</div>
+			<?php
 			return;
 		}
 		?>

@@ -9,8 +9,9 @@ final class PBD_Exp_Admin_Archive {
 
 	public static function render() {
 		$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
-		$experiments = PBD_Exp_Repo::list_experiments( array( 'concluded' ) );
+		$all_concluded = PBD_Exp_Repo::list_experiments( array( 'concluded' ) );
 
+		$experiments = $all_concluded;
 		if ( '' !== $search ) {
 			$needle = strtolower( $search );
 			$experiments = array_values( array_filter( $experiments, function ( $e ) use ( $needle ) {
@@ -21,17 +22,37 @@ final class PBD_Exp_Admin_Archive {
 
 		?>
 		<div class="wrap pbd-exp-wrap">
-			<h1>Past Experiments</h1>
-			<form method="get" class="search-form">
-				<input type="hidden" name="page" value="<?php echo esc_attr( PBD_Exp_Admin::MENU_SLUG . '-archive' ); ?>">
-				<input type="search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="Search name or key">
-				<button class="button" type="submit">Search</button>
-			</form>
+			<h1 class="wp-heading-inline">Past Experiments</h1>
+			<a class="page-title-action" href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG ) ); ?>">&larr; Active experiments</a>
+			<hr class="wp-header-end">
 
-			<?php if ( empty( $experiments ) ) : ?>
-				<p>No concluded experiments yet.</p>
+			<?php if ( empty( $all_concluded ) ) : ?>
+				<div class="pbd-exp-empty">
+					<h3>No concluded experiments yet</h3>
+					<p>When you conclude a running experiment, its result snapshot is frozen and it appears here for future reference. Declare a winner so future-you remembers what won.</p>
+					<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG ) ); ?>">Go to active experiments</a>
+				</div>
 			<?php else : ?>
-				<?php foreach ( $experiments as $experiment ) : self::render_archived_experiment( $experiment ); endforeach; ?>
+				<form method="get" class="search-form" style="margin:16px 0 8px;display:flex;gap:8px;align-items:center;">
+					<input type="hidden" name="page" value="<?php echo esc_attr( PBD_Exp_Admin::MENU_SLUG . '-archive' ); ?>">
+					<input type="search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="Search by name or key">
+					<button class="button" type="submit">Search</button>
+					<?php if ( '' !== $search ) : ?>
+						<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '-archive' ) ); ?>">Clear</a>
+					<?php endif; ?>
+					<span style="margin-left:auto;color:#646970;font-size:12px;">
+						<?php printf( esc_html( _n( '%d concluded experiment', '%d concluded experiments', count( $all_concluded ), 'pbd-experiments' ) ), (int) count( $all_concluded ) ); ?>
+					</span>
+				</form>
+
+				<?php if ( empty( $experiments ) ) : ?>
+					<div class="pbd-exp-empty">
+						<h3>No matches for &ldquo;<?php echo esc_html( $search ); ?>&rdquo;</h3>
+						<p>Try a different name or experiment key.</p>
+					</div>
+				<?php else : ?>
+					<?php foreach ( $experiments as $experiment ) : self::render_archived_experiment( $experiment ); endforeach; ?>
+				<?php endif; ?>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -42,40 +63,73 @@ final class PBD_Exp_Admin_Archive {
 		$snapshot     = $snapshot_row ? $snapshot_row['snapshot'] : null;
 		$winner_id    = (int) $experiment['winning_variant_id'];
 
+		$duration_label = '';
+		if ( ! empty( $experiment['started_at'] ) && ! empty( $experiment['concluded_at'] ) ) {
+			$days = max( 0, (int) floor( ( strtotime( $experiment['concluded_at'] ) - strtotime( $experiment['started_at'] ) ) / DAY_IN_SECONDS ) );
+			$duration_label = 1 === $days ? '1 day' : ( number_format_i18n( $days ) . ' days' );
+		}
+
+		$edit_url = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&action=edit&id=' . $experiment['id'] );
+
 		?>
-		<div class="pbd-exp-archive-item" style="background:#fff;border:1px solid #c3c4c7;padding:16px;margin:16px 0;">
+		<div class="pbd-exp-archive-item">
 			<h2>
 				<?php echo esc_html( $experiment['name'] ); ?>
-				<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&action=edit&id=' . $experiment['id'] ) ); ?>" class="button button-small">View</a>
+				<?php if ( $winner_id ) : ?>
+					<span class="pbd-exp-winner-badge">winner declared</span>
+				<?php endif; ?>
+				<span class="actions">
+					<a href="<?php echo esc_url( $edit_url ); ?>" class="button button-small">Open</a>
+				</span>
 			</h2>
-			<p>
+			<p class="pbd-exp-archive-meta">
+				<span class="pbd-exp-status pbd-exp-status--concluded">Concluded</span>
 				<code><?php echo esc_html( $experiment['experiment_key'] ); ?></code>
-				on <code><?php echo esc_html( $experiment['target_path'] ); ?></code>
-				&middot; concluded <?php echo esc_html( $experiment['concluded_at'] ); ?>
+				<span>on <code><?php echo esc_html( $experiment['target_path'] ); ?></code></span>
+				<?php if ( ! empty( $experiment['concluded_at'] ) ) : ?>
+					<span>&middot; concluded <?php echo esc_html( mysql2date( get_option( 'date_format' ), $experiment['concluded_at'] ) ); ?></span>
+				<?php endif; ?>
+				<?php if ( $duration_label ) : ?>
+					<span>&middot; ran for <?php echo esc_html( $duration_label ); ?></span>
+				<?php endif; ?>
 			</p>
 
+			<?php if ( ! $winner_id ) : ?>
+				<div class="pbd-exp-help" style="margin:0 0 14px;">
+					<strong>No winner declared.</strong> Open the experiment and pick the winning variant so future-you remembers what worked.
+					<a href="<?php echo esc_url( $edit_url ); ?>">Declare winner &rarr;</a>
+				</div>
+			<?php endif; ?>
+
 			<?php if ( ! $snapshot ) : ?>
-				<p>No snapshot recorded.</p>
+				<p style="color:#646970;">No snapshot recorded for this experiment.</p>
 			<?php else : ?>
-				<table class="widefat striped">
+				<table class="widefat striped pbd-exp-results">
 					<thead>
 						<tr>
-							<th>Variant</th>
+							<th class="col-variant">Variant</th>
 							<th>Visitors</th>
 							<?php foreach ( $snapshot['active_metrics'] as $metric ) : ?>
 								<th><?php echo esc_html( $metric['name'] ); ?></th>
 								<th>Rate</th>
-								<th>Lift</th>
+								<th>Lift vs control</th>
 							<?php endforeach; ?>
 						</tr>
 					</thead>
 					<tbody>
-						<?php foreach ( $snapshot['rows'] as $row ) : ?>
-							<tr <?php if ( $winner_id && $winner_id === (int) $row['variant_id'] ) echo 'style="background:#fff8e5;"'; ?>>
-								<td>
-									<?php echo esc_html( $row['label'] ); ?>
+						<?php foreach ( $snapshot['rows'] as $i => $row ) :
+							$is_winner = $winner_id && $winner_id === (int) $row['variant_id'];
+							$is_control = 0 === $i;
+							$row_classes = array();
+							if ( $is_winner ) $row_classes[] = 'row-winner';
+							if ( $is_control ) $row_classes[] = 'row-control';
+						?>
+							<tr<?php if ( $row_classes ) echo ' class="' . esc_attr( implode( ' ', $row_classes ) ) . '"'; ?>>
+								<td class="col-variant">
+									<strong><?php echo esc_html( $row['label'] ); ?></strong>
 									<code><?php echo esc_html( $row['variant_key'] ); ?></code>
-									<?php if ( $winner_id && $winner_id === (int) $row['variant_id'] ) : ?>
+									<?php if ( $is_control ) : ?><em>baseline</em><?php endif; ?>
+									<?php if ( $is_winner ) : ?>
 										<span class="pbd-exp-winner-badge">winner</span>
 									<?php endif; ?>
 								</td>
@@ -83,7 +137,18 @@ final class PBD_Exp_Admin_Archive {
 								<?php foreach ( $row['metrics'] as $metric_row ) : ?>
 									<td><?php echo esc_html( number_format_i18n( $metric_row['conversions'] ) ); ?></td>
 									<td><?php echo esc_html( number_format_i18n( $metric_row['rate'] * 100, 2 ) ); ?>%</td>
-									<td><?php echo null === $metric_row['lift'] ? '&mdash;' : esc_html( number_format_i18n( $metric_row['lift'], 2 ) . '%' ); ?></td>
+									<td>
+										<?php
+										if ( null === $metric_row['lift'] ) {
+											echo '<span class="pbd-exp-lift--flat">&mdash;</span>';
+										} else {
+											$lift = (float) $metric_row['lift'];
+											$cls  = $lift > 0.5 ? 'pbd-exp-lift--up' : ( $lift < -0.5 ? 'pbd-exp-lift--down' : 'pbd-exp-lift--flat' );
+											$sign = $lift > 0 ? '+' : '';
+											printf( '<span class="%s">%s%s%%</span>', esc_attr( $cls ), esc_html( $sign ), esc_html( number_format_i18n( $lift, 2 ) ) );
+										}
+										?>
+									</td>
 								<?php endforeach; ?>
 							</tr>
 						<?php endforeach; ?>
@@ -92,8 +157,8 @@ final class PBD_Exp_Admin_Archive {
 			<?php endif; ?>
 
 			<?php if ( ! empty( $experiment['notes'] ) ) : ?>
-				<h3>Notes</h3>
-				<div style="background:#f6f7f7;border:1px solid #dcdcde;padding:8px 12px;"><?php echo nl2br( esc_html( $experiment['notes'] ) ); ?></div>
+				<h3 style="margin-top:18px;font-size:13px;text-transform:uppercase;letter-spacing:0.04em;color:#646970;">Notes</h3>
+				<div class="pbd-exp-notes" style="background:#f6f7f7;"><?php echo nl2br( esc_html( $experiment['notes'] ) ); ?></div>
 			<?php endif; ?>
 		</div>
 		<?php
