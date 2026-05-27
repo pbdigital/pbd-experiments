@@ -1,149 +1,90 @@
-# PBD Experiments admin: improvement wish list
+> Status: all 16 items implemented in the Add/Edit Experiment screen (see `includes/admin/class-edit.php`, `assets/admin.css`, `assets/admin.js`).
 
-A running list of UX, intuitiveness, and functionality ideas across every admin screen. Organised by screen, then by tier: **Quick wins** (small, mostly UI), **Bigger lifts** (real feature work), **Stretch** (ambitious).
+# UI/UX recommendations — `Add Experiment` screen
 
-Nothing here is committed work. This is a menu to pull from.
+Working through this top-to-bottom from the perspective of a first-time user trying to launch their first test.
 
----
+## Priority 1 — the things hurting comprehension right now
 
-## Cross-cutting (applies to every screen)
+1. **Reframe the page as a setup flow, not a settings form.** The WP `form-table` (label-left, input-right) is dense and feels like a 2012 Settings page. For a creation flow, stack inputs vertically inside each card with the label directly above the field. Form-table works great for site-wide settings, badly for a multi-section editor.
 
-### Quick wins
-- Persistent breadcrumbs or back-link affordance on every sub-screen (we have "All experiments" on edit/dashboard, but archive could use a sibling link).
-- Tooltips on the status pills explaining what each state actually does for visitors.
-- Keyboard shortcut: `n` to start a new experiment from the list, `/` to focus search on archive.
-- Inline doc links: a "Help" link in the top right of each screen that opens a side panel with the relevant section of the README.
-- "Copy link to this dashboard" button (especially useful for sharing in Slack).
+2. **Give variants a visual split bar.** Right now Weight is a number input with a tiny "50%" beside it. Add a single horizontal bar above (or below) the variants table that shows the current split visually: `[ Control 50% ████ | Variant 50% ████ ]`, updating live as weights change. It makes the abstraction concrete and catches errors like a total of 150% immediately.
 
-### Bigger lifts
-- **Activity log per experiment.** Who started it, who paused it, who concluded it, and when. Right now the only timestamp we keep is `started_at` and `concluded_at`.
-- **Role-based permissions.** Today everything is gated on `manage_options`. A "viewer" role that can see dashboards but not change status would let non-admins watch tests without risk.
-- **Notification triggers.** Optional Slack webhook or email when an experiment goes SRM, when a metric hasn't fired in N days, or when a long-running test crosses a milestone (e.g. 1000 visitors per arm).
-- **Audit trail of config changes.** Variants added, weights changed, metrics flipped. Important for forensics on weird results.
+3. **The Template/Redirect column is confusing.** Two inputs overlap in the same cell with one display-hidden via JS. Replace it with: when `Type = Redirect`, the destination field's placeholder, helper text, and validation pattern change. Or, better, make it a segmented control inside the row that visibly swaps the field's label ("Template file" vs "Redirect URL").
 
-### Stretch
-- A "tag" system so related experiments group together (e.g. `homepage`, `pricing`, `Q3-onboarding`). Filter and aggregate by tag.
-- Lightweight onboarding checklist when the plugin is first activated: "Set your timezone, create your first experiment, install the JS snippet on a test page."
+4. **Make Target path feel like a URL, not free text.** Prefix the field with the read-only site origin so users see what they're actually targeting:
+   `[ http://localhost:8090 ] [ /free-classes ]`. Saves typos and removes the cognitive jump. 
 
----
+   Even better. Provide the option of a searchable dropdown of existing WP pages that user can select from.
 
-## List screen (Experiments)
+5. **Sticky save bar.** A long form ends at a tiny "Save and continue" button at the bottom-left. Pin a slim bar to the bottom of the viewport with the primary CTA on the right and a quiet "Cancel" on the left. Show validation summary inline when the user attempts to save with errors.
 
-### Quick wins
-- **Whole row is clickable** to the dashboard, not just the buttons.
-- **Show "last event N min ago"** per experiment so it's obvious at a glance whether tracking is live.
-- **Show the primary metric headline** (rate + lift vs control) right in the row, so you don't have to open the dashboard to know who's winning.
-- **Quick-action row controls.** Pause an active test, resume a paused one, or duplicate as new without leaving the list.
-- **Sort columns.** Visitors descending is the most useful default for active tests; updated_at desc is good for drafts.
-- **Inline search-as-you-type.** A search box above the filter tabs that filters the table client-side.
-- Show a small target-path icon when more than one experiment shares the same path (potential conflict).
+## Priority 2 — clarity and confidence
 
-### Bigger lifts
-- **"Duplicate as new"** row action. Clone variants + metrics into a fresh draft so you can iterate.
-- **Bulk actions.** Pause selected, conclude selected, delete drafts.
-- **Conflict warning banner.** If two active experiments target the same `target_path`, surface that loudly. Today the dispatcher picks the first match, which is invisible.
-- **Tracking health column.** Green dot if events recorded in the last hour, amber if last event > 24h, red if no events since `started_at`. Saves the trip into Recent Events to diagnose.
-- **"Recent events" filter.** Limit to a specific experiment, or to off-target events (a frequent debugging case).
+6. **Inline the metric snippet helper where it's relevant.** "How do I fire a metric event?" is currently a `<details>` at the foot of the Metrics card. Move the copy snippets to a popover that opens from a small `(?)` icon on the Event name column header, or render them per-row when a row is focused. The current placement makes the user scroll past metrics, then scroll back.
 
-### Stretch
-- Drag to set explicit priority among experiments that share a target path, instead of relying on insertion order.
-- Drafts have their own subview/section so live experiments and ideas-in-progress don't compete for attention in the same table.
+7. **Show the derivation of the `Key` live.** Right now the helper says "Auto-fills from the name." Show it inline: as the user types into Name, render a small badge under it ("Key: `free_classes_homepage`") with an "Edit" link that reveals the editable key field. Hides the technical detail until needed.
 
----
+8. **Cookie days needs human translation.** Stick a quiet `≈ 3 months` next to the number that updates as the user types. Same trick for `1 = each pageview`, `30 = a month`. Number-to-meaning helpers are cheap and high-value.
 
-## Edit screen (Add / Edit experiment)
+9. **"Include logged-in users" needs a warning, not a reassurance.** The current description says "Default off. Internal browsing shouldn't pollute results." Reframe as a yellow info note when the box is checked: "Heads-up: your own admin sessions will now be counted in results."
 
-### Quick wins
-- **Dirty-form warning** on navigate away (the existing "Cancel" button is a soft trap if you've made changes).
-- **Live preview links per variant** while editing: "View on site as Control" / "View as Variant" using `?pbd_exp_variant=` so you can sanity-check the template swap before saving.
-- **Template path picker.** Dropdown of `*.php` files in the active theme + child theme, instead of typing a filename and praying. Free-text fallback for advanced cases.
-- **Validate basics on save:** at least 2 variants, weights not all zero, variant keys unique, redirect URLs not empty when type is `redirect`. Right now invalid rows are silently dropped or refused.
-- **Visible warning** when `experiment_key` clashes with an existing one (currently relies on DB unique constraint failing).
-- **Hypothesis field** separate from Notes. "I expect Variant B to lift opt-in by 10%" framed as its own input forces clearer thinking and reads back well on the archive.
-- **Snippet helper auto-pulls the first metric's event name** instead of always saying `opt_in`. Less editing for the user.
-- **Inline link to "Test mode"** so admins can see a variant via cookie without committing real assignment data.
+10. **Notes deserves a hypothesis nudge.** Replace the placeholder with the actual format you want people to use: `Hypothesis: changing X will increase Y because…`. Optional but a great forcing function for good experimentation hygiene.
 
-### Bigger lifts
-- **Variant cards instead of a table.** Each variant gets a small card with the destination input, a "Preview" link, optional screenshot thumb, and the weight + share. Reads better when destinations are long URLs or paths.
-- **Pre-flight checklist** before Start. A small card that turns from amber to green as you tick: at least 2 variants present, weights sum > 0, at least one active metric, target path resolves to a real WP URL, redirect URLs respond 200. Then Start is enabled.
-- **Path validator.** When you type a `target_path`, AJAX a quick check: does WP resolve it, what template would render? Catches typos and 404 targets at config time.
-- **Conflict detection on save.** Refuse (or warn loudly) if another active experiment uses the same target path.
-- **Per-variant screenshot upload** for visual identification on the dashboard and archive.
-- **Allow `target_path` patterns.** Wildcard suffix (`/blog/*`), or a list of explicit paths, so a single experiment can cover a section.
+## Priority 3 — polish
 
-### Stretch
-- **Visual diff of variant templates** (read the template file off disk, show the differences from the control template).
-- Markdown or rich-text notes editor.
-- Inline traffic estimator: "At your current visitor volume, this experiment will reach 1000 visitors per arm in ~6 days."
+11. **Two competing H1/H2 stacks at the top.** "Add Experiment" (h1) immediately followed by a help banner immediately followed by "Basics" (h2). Drop the "Basics" heading, the card itself is the section and the hint is enough.
 
----
+12. **Drag handle is invisible to most users.** The `≡` glyph with `title="Drag to reorder"` only shows on hover. Use a proper dotted-grip icon (Dashicons has one) and add a subtle hover state on the whole row so it's obvious rows are sortable. Also consider whether reordering variants is something users actually do often, if not, drop it.
 
-## Dashboard (per-experiment results)
+13. **Remove row buttons are bare `×` glyphs.** On hover they should turn red, and only the X cell should activate them (not the whole cell). Add an `aria-label` per row that includes the variant label so screen readers say "Remove Control" not just "Remove variant".
 
-### Quick wins
-- **Date window presets:** Last 7 days, Last 14 days, Last 30 days, Since start. Saves picking dates manually.
-- **Donut of observed traffic split** alongside the configured weights, so SRM is visible before the warning fires.
-- **Tracking health indicator** at the top: "Last event 3 minutes ago" or "No events since started_at, check your tracking."
-- **Per-metric tabs.** When there are 3+ metrics, the wide table gets cramped. Tabs (or radio-style toggles) collapse to one metric at a time, with "All metrics" view as an option.
-- **CSV export** of the current report.
-- **Auto-refresh** toggle (every 30s) for actively running tests.
-- **Tooltip on the lift cells** explaining the calculation in plain English.
-- Hide the Actions bar at the bottom if user role can't transition.
+14. **Variants and Metrics tables are using `widefat` which gives them a slightly off-feel inside a card.** Either drop `widefat` and style them to match the card's padding, or pull the table out of the padded card body so it goes edge to edge cleanly.
 
-### Bigger lifts
-- **Time-series chart.** Visitors and conversions per day, per variant. The biggest single UX upgrade for this screen.
-- **Statistical confidence indicator.** Even a simple frequentist z-test or Bayesian probability-of-being-best, surfaced as "Variant B is ahead, but with the current sample size we're 70% confident." Stops people calling winners too early.
-- **Sample-size calculator card.** "You need ~2,400 more visitors per arm to detect a 5% lift at 95% confidence." Tied to current visitor velocity to estimate "about 6 more days."
-- **Per-variant conversion funnel** when multiple metrics are configured. See where Variant B picks up the win, not just that it wins.
-- **Segment slicing.** Logged-in vs anonymous, new vs returning visitor (cookie-age based), top referrers, device type if we capture it. Reveals when a win is real vs an artefact.
-- **Annotations on the chart.** When config changes mid-flight (weights adjusted, metric activated), mark the time on the chart so you can see whether results shifted.
+15. **Status bar appears only after save**, fine, but the empty state should set the expectation. Add a faint placeholder under the title for new experiments: "Status appears here after you save."
 
-### Stretch
-- **Pairwise variant comparison** when more than 2 arms. Today everything's compared to the first row (control). Sometimes you want B vs C.
-- **Anonymous share link** that renders a read-only public dashboard for sharing with clients.
-- **Weekly summary email** of running experiments, opt-in per experiment.
+16. **The bottom of the Metrics card has three blocks of "description" text and a `<details>` snippet help.** That's a lot of small grey text. Consolidate: one short sentence in the card header, and the snippets behind the inline `(?)` icon from point 6.
 
----
+## A quick rough sketch of the proposed layout
 
-## Archive (Past Experiments)
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Add Experiment                       ← All experiments      │
+│ Name it, pick where it runs, define variants, save.         │
+├─────────────────────────────────────────────────────────────┤
+│ ┃ Basics                                                    │
+│ ┃   Name *                                                  │
+│ ┃   [ Free classes homepage test                       ]    │
+│ ┃   Key: free_classes_homepage  (edit)                      │
+│ ┃                                                           │
+│ ┃   Target URL *                                            │
+│ ┃   [ localhost:8090 ][ /free-classes                  ]    │
+│ ┃                                                           │
+│ ┃   Cookie [ 90 ] days  ≈ 3 months                          │
+│ ┃   ☐ Include logged-in users                               │
+│ ┃   Notes                                                   │
+│ ┃   [ Hypothesis: changing X will increase Y because… ]     │
+├─────────────────────────────────────────────────────────────┤
+│ ┃ Variants                                                  │
+│ ┃   ████████████████ Control 50%  |  ████████ Variant 50%   │
+│ ┃   ─── rows ───                                            │
+│ ┃   + Add variant                                           │
+├─────────────────────────────────────────────────────────────┤
+│ ┃ Metrics                          (?) How to fire events   │
+│ ┃   ─── rows ───                                            │
+│ ┃   + Add metric                                            │
+└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────  Cancel | Save ───────┐
+```
 
-### Quick wins
-- **Sort dropdown:** Most recent, longest run, highest lift, biggest sample.
-- **Filter by outcome:** Has winner, no winner declared, abandoned (no data recorded). Helps with "what have we actually learned?" reviews.
-- **Re-run as new** button on every card. Clones config to a fresh draft.
-- **Print-friendly view** of a single archived experiment (clean layout, no admin chrome) for embedding in client reports.
-- **"Pin to top"** or star on important experiments so the lessons surface above noise as the archive grows.
+## Suggested implementation order
 
-### Bigger lifts
-- **Lessons-learned field** separate from Notes. Filled in *after* concluding. Tag-able so you can search "what did we learn about pricing pages."
-- **Compare two archived experiments** side by side. Same target path, before and after, what changed.
-- **Roll-up by tag.** All experiments tagged `pricing`: aggregate winning rate, total visitors tested, common patterns.
-- **Restore to active** with a confirm warning. Useful for tests we concluded too early.
-- **Export everything** as a JSON archive for portability or backup.
+If picking these off one by one, the biggest perceptible lift per hour of work:
 
-### Stretch
-- A "best-of" section that surfaces the highest-lift winners across the whole archive, partly as a morale boost, partly as an idea library.
-- Auto-generated narrative summary per archived experiment: "Ran 14 days, 12k visitors, Variant B won opt-in by 18% at 95% confidence" generated from the snapshot.
+1. Split bar above variants (#2)
+2. URL-prefix input for Target path (#4)
+3. Sticky save bar (#5)
+4. Inline key derivation badge (#7)
+5. Cookie days human translation (#8)
 
----
-
-## Tracking and developer ergonomics (not screens, but admin-adjacent)
-
-### Quick wins
-- **Admin frontend toolbar widget.** When an admin browses the site, show which experiment + variant they're assigned to and a "Force variant" dropdown that overrides cookie for the session.
-- **In-page debug panel** behind a `?pbd_exp_debug=1` query string, showing dispatched experiment, assigned variant, metrics fired, REST endpoint responses.
-
-### Bigger lifts
-- **Force-variant link generator** per variant in the edit screen. One-click copyable URL like `https://site.com/free-classes/?pbd_exp_variant=variant&pbd_exp_preview=key` that bypasses normal assignment for QA.
-- **Built-in event tester.** A button on the Edit screen that fires a test event against the experiment + a chosen variant. Confirms the REST endpoint works without instrumenting the page first.
-
-### Stretch
-- **Integration helpers.** First-class hooks for GA4, Google Tag Manager, Microsoft Clarity, Meta Pixel: when an assignment happens, also push an event into the configured analytics tool with the experiment + variant.
-
----
-
-## Triage suggestion
-
-If the goal is "I'd happily hand this to Joe or Carlo tomorrow," the next sweep would focus on the **edit screen pre-flight checklist**, **dashboard time-series chart + tracking-health indicator**, and **list-screen primary-metric column + tracking-health column**. Those three together remove the biggest sources of "wait, is this thing actually working?" and "who's winning?" anxiety.
-
-The cross-cutting activity log and the per-experiment hypothesis field are the next layer down. Cheap to add, high signal for future-Paul (and future-Carlo) revisiting old tests.
+Everything else is incremental polish on top.

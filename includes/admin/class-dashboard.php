@@ -114,8 +114,12 @@ final class PBD_Exp_Admin_Dashboard {
 			<?php self::render_dashboard_actions( $experiment ); ?>
 
 			<?php if ( ! empty( $experiment['notes'] ) ) : ?>
-				<h2 style="margin-top:28px;">Notes</h2>
-				<div class="pbd-exp-notes"><?php echo nl2br( esc_html( $experiment['notes'] ) ); ?></div>
+				<div class="pbd-exp-card" style="margin-top:24px;">
+					<div class="pbd-exp-card__header">
+						<h2>Notes</h2>
+					</div>
+					<div class="pbd-exp-card__body"><?php echo nl2br( esc_html( $experiment['notes'] ) ); ?></div>
+				</div>
 			<?php endif; ?>
 		</div>
 		<?php

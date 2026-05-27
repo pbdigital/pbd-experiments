@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PBD_EXP_VERSION', '1.0.0' );
+define( 'PBD_EXP_VERSION', '1.0.1' );
 define( 'PBD_EXP_FILE', __FILE__ );
 define( 'PBD_EXP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'PBD_EXP_URL', plugin_dir_url( __FILE__ ) );

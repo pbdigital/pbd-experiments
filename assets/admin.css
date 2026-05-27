@@ -326,7 +326,10 @@
 	gap: 4px;
 }
 .pbd-exp-date-window input[type="date"] {
-	padding: 4px 6px;
+	height: 30px;
+	padding: 0 8px;
+	box-sizing: border-box;
+	line-height: 1;
 }
 
 /* ---------- Results table ---------- */
@@ -544,3 +547,425 @@
 	border-top: 1px solid var(--pbd-exp-border);
 	margin: 24px 0;
 }
+
+/* ===================== EDIT SCREEN REDESIGN ===================== */
+
+/* [hidden] must always win over our display rules. */
+.pbd-exp-wrap [hidden] { display: none !important; }
+
+/* Page lede under H1 replacing old help banner + Basics h2 */
+.pbd-exp-edit-screen .pbd-exp-page-lede {
+	margin: 6px 0 12px;
+	color: var(--pbd-exp-muted);
+	font-size: 14px;
+	max-width: 720px;
+}
+
+.pbd-exp-status-placeholder {
+	color: var(--pbd-exp-muted);
+	font-size: 12px;
+	margin: 8px 0 16px;
+}
+
+/* Vertical stack form layout inside cards */
+.pbd-exp-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	max-width: 720px;
+}
+.pbd-exp-field {
+	display: flex;
+	flex-direction: column;
+}
+.pbd-exp-field__label {
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--pbd-exp-ink);
+	margin: 0 0 6px;
+}
+.pbd-exp-req { color: var(--pbd-exp-danger); font-weight: 600; }
+.pbd-exp-field__hint {
+	margin: 6px 0 0;
+	font-size: 12px;
+	color: var(--pbd-exp-muted);
+}
+.pbd-exp-field__hint code {
+	background: var(--pbd-exp-bg);
+	padding: 1px 5px;
+	border-radius: 3px;
+}
+.pbd-exp-input { max-width: 100%; }
+
+.pbd-exp-inline-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.pbd-exp-helper-text {
+	font-size: 12px;
+	color: var(--pbd-exp-muted);
+}
+
+.pbd-exp-checkbox {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 13px;
+	color: var(--pbd-exp-ink);
+}
+
+.pbd-exp-warning-note {
+	margin-top: 8px;
+	background: var(--pbd-exp-warn-bg);
+	color: var(--pbd-exp-warn);
+	border-left: 3px solid #d4a72c;
+	padding: 8px 12px;
+	border-radius: 0 4px 4px 0;
+	font-size: 12px;
+}
+
+/* Inline key derivation badge */
+.pbd-exp-key-badge {
+	margin-top: 6px;
+	font-size: 12px;
+	color: var(--pbd-exp-muted);
+}
+.pbd-exp-key-badge code {
+	background: var(--pbd-exp-bg);
+	padding: 2px 6px;
+	border-radius: 3px;
+	color: var(--pbd-exp-ink);
+}
+.pbd-exp-link-btn {
+	background: transparent;
+	border: 0;
+	color: var(--pbd-exp-accent);
+	cursor: pointer;
+	font-size: 12px;
+	padding: 0 0 0 4px;
+	text-decoration: underline;
+}
+.pbd-exp-link-btn:hover { color: #135e96; }
+
+/* URL prefix input */
+.pbd-exp-url-input {
+	display: flex;
+	align-items: stretch;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	background: #fff;
+	overflow: hidden;
+	max-width: 600px;
+}
+.pbd-exp-url-input:focus-within {
+	border-color: var(--pbd-exp-accent);
+	box-shadow: 0 0 0 1px var(--pbd-exp-accent);
+}
+.pbd-exp-url-input__origin {
+	background: var(--pbd-exp-bg);
+	color: var(--pbd-exp-muted);
+	padding: 6px 10px;
+	font-family: Menlo, Consolas, monospace;
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	border-right: 1px solid var(--pbd-exp-border);
+	white-space: nowrap;
+	max-width: 50%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.pbd-exp-url-input__path {
+	border: 0 !important;
+	box-shadow: none !important;
+	outline: none !important;
+	flex: 1;
+	padding: 6px 10px;
+	font-family: Menlo, Consolas, monospace;
+	font-size: 13px;
+	background: transparent;
+	min-width: 0;
+}
+.pbd-exp-url-input__path:focus { box-shadow: none !important; }
+
+/* Card header help button */
+.pbd-exp-help-btn {
+	margin-left: auto;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 1px solid var(--pbd-exp-border-strong);
+	background: var(--pbd-exp-card-bg);
+	color: var(--pbd-exp-muted);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1;
+	padding: 0;
+}
+.pbd-exp-help-btn:hover,
+.pbd-exp-help-btn[aria-expanded="true"] {
+	background: var(--pbd-exp-accent);
+	border-color: var(--pbd-exp-accent);
+	color: #fff;
+}
+
+/* Popover (metric snippet help) */
+.pbd-exp-popover {
+	background: var(--pbd-exp-bg);
+	border: 1px solid var(--pbd-exp-border);
+	border-radius: 4px;
+	padding: 12px 14px 14px;
+	margin: 0 0 14px;
+	font-size: 13px;
+}
+.pbd-exp-popover__header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 8px;
+}
+.pbd-exp-popover__header strong {
+	font-size: 13px;
+	flex: 1;
+}
+.pbd-exp-popover__close {
+	background: transparent;
+	border: 0;
+	color: var(--pbd-exp-muted);
+	font-size: 18px;
+	cursor: pointer;
+	line-height: 1;
+	padding: 2px 6px;
+}
+.pbd-exp-popover__close:hover { color: var(--pbd-exp-ink); }
+.pbd-exp-popover__label {
+	margin: 8px 0 4px;
+	font-size: 12px;
+	color: var(--pbd-exp-ink);
+}
+
+/* Split bar above variants */
+.pbd-exp-split-bar {
+	display: flex;
+	height: 28px;
+	border-radius: 4px;
+	overflow: hidden;
+	background: var(--pbd-exp-bg);
+	border: 1px solid var(--pbd-exp-border);
+	margin: 0 0 6px;
+}
+.pbd-exp-split-bar__seg {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-size: 12px;
+	font-weight: 600;
+	min-width: 0;
+	padding: 0 8px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	transition: flex-grow 0.2s ease;
+}
+.pbd-exp-split-bar__seg:nth-child(1) { background: #2271b1; }
+.pbd-exp-split-bar__seg:nth-child(2) { background: #3c93d4; }
+.pbd-exp-split-bar__seg:nth-child(3) { background: #5fb3e8; }
+.pbd-exp-split-bar__seg:nth-child(4) { background: #82c8f0; color: #1d2327; }
+.pbd-exp-split-bar__seg:nth-child(n+5) { background: #a5d8f5; color: #1d2327; }
+.pbd-exp-split-bar__seg .pct {
+	margin-left: 6px;
+	opacity: 0.85;
+	font-weight: 500;
+}
+.pbd-exp-split-bar__warning {
+	margin: 4px 0 12px;
+	font-size: 12px;
+	color: var(--pbd-exp-danger);
+	font-weight: 600;
+}
+
+/* Refreshed editor table (no widefat) */
+.pbd-exp-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	margin: 8px 0 0;
+}
+.pbd-exp-table thead th {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--pbd-exp-muted);
+	font-weight: 600;
+	text-align: left;
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--pbd-exp-border);
+	background: transparent;
+}
+.pbd-exp-table tbody td {
+	padding: 8px 10px;
+	vertical-align: middle;
+	border-bottom: 1px solid #f0f0f1;
+	background: transparent;
+}
+.pbd-exp-table tbody tr:hover td { background: #fafafb; }
+.pbd-exp-table input[type="text"],
+.pbd-exp-table input[type="number"] {
+	max-width: 100%;
+}
+.pbd-exp-table input[type="text"] { width: 100%; }
+.pbd-exp-table input[type="number"].pbd-exp-weight { width: 70px; }
+
+.pbd-exp-table .col-handle { width: 26px; padding-left: 4px; padding-right: 4px; }
+.pbd-exp-table .col-key { width: 140px; }
+.pbd-exp-table .col-weight { width: 150px; }
+.pbd-exp-table .col-type { width: 180px; }
+.pbd-exp-table .col-remove,
+.pbd-exp-table .col-active { width: 40px; text-align: center; }
+.pbd-exp-table .col-active { width: 70px; }
+
+.pbd-exp-table-actions { margin: 12px 0 4px; }
+
+/* Drag handle: dotted grip icon */
+.pbd-exp-drag {
+	cursor: grab;
+	user-select: none;
+	color: #c3c4c7;
+	text-align: center;
+	padding: 0;
+}
+.pbd-exp-drag:active { cursor: grabbing; }
+.pbd-exp-drag__grip {
+	display: inline-block;
+	width: 10px;
+	height: 16px;
+	background-image: radial-gradient(currentColor 1.2px, transparent 1.2px);
+	background-size: 5px 5px;
+	background-position: 0 0;
+	vertical-align: middle;
+}
+.pbd-exp-variant-row:hover .pbd-exp-drag { color: #646970; }
+
+/* Remove row buttons */
+.pbd-exp-remove-row {
+	background: transparent;
+	border: 0;
+	color: #8c8f94;
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.pbd-exp-remove-row:hover {
+	color: var(--pbd-exp-danger);
+	background: #fbeaea;
+}
+.pbd-exp-remove-row .dashicons {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+}
+
+/* Segmented control for variant type */
+.pbd-exp-segmented {
+	display: inline-flex;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	overflow: hidden;
+	background: #fff;
+}
+.pbd-exp-segmented label {
+	margin: 0;
+	cursor: pointer;
+	position: relative;
+}
+.pbd-exp-segmented label input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+.pbd-exp-segmented label span {
+	display: block;
+	padding: 4px 10px;
+	font-size: 12px;
+	color: var(--pbd-exp-muted);
+	background: transparent;
+	user-select: none;
+}
+.pbd-exp-segmented label + label span {
+	border-left: 1px solid #c3c4c7;
+}
+.pbd-exp-segmented label input:checked + span {
+	background: var(--pbd-exp-accent);
+	color: #fff;
+}
+.pbd-exp-segmented label input:focus-visible + span {
+	box-shadow: inset 0 0 0 2px #135e96;
+}
+
+.pbd-exp-dest-cell input[hidden] { display: none !important; }
+.pbd-exp-dest-cell input { width: 100%; }
+
+/* Sticky save bar */
+.pbd-exp-save-bar-spacer { height: 60px; }
+.pbd-exp-save-bar {
+	position: fixed;
+	left: 160px; /* WP admin sidebar default */
+	right: 0;
+	bottom: 0;
+	background: var(--pbd-exp-card-bg);
+	border-top: 1px solid var(--pbd-exp-border);
+	box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
+	padding: 10px 28px;
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	z-index: 100;
+}
+.folded .pbd-exp-save-bar { left: 36px; }
+@media screen and (max-width: 960px) {
+	.pbd-exp-save-bar { left: 36px; }
+}
+@media screen and (max-width: 782px) {
+	.pbd-exp-save-bar { left: 0; padding: 10px 16px; }
+	.folded .pbd-exp-save-bar { left: 0; }
+}
+.pbd-exp-save-bar__cancel {
+	color: var(--pbd-exp-muted);
+	text-decoration: none;
+	font-size: 13px;
+}
+.pbd-exp-save-bar__cancel:hover { color: var(--pbd-exp-danger); }
+.pbd-exp-save-bar__hint {
+	flex: 1;
+	color: var(--pbd-exp-muted);
+	font-size: 12px;
+	text-align: center;
+}
+.pbd-exp-save-bar__save {
+	margin-left: auto;
+}
+
+/* Inline validation summary */
+.pbd-exp-validation-summary {
+	background: #fdeaea;
+	border: 1px solid #f5c2c7;
+	color: #842029;
+	border-radius: 4px;
+	padding: 10px 14px;
+	margin: 0 0 16px;
+	font-size: 13px;
+}
+.pbd-exp-validation-summary ul {
+	margin: 6px 0 0 18px;
+	padding: 0;
+	list-style: disc;
+}
+
+/* When user clicks the save bar's Save the inline summary should pull focus. */
+.pbd-exp-validation-summary:focus { outline: 2px solid var(--pbd-exp-danger); outline-offset: 2px; }

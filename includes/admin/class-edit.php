@@ -54,16 +54,25 @@ final class PBD_Exp_Admin_Edit {
 		}
 
 		$is_locked = 'concluded' === $experiment['status'];
+
+		$site_origin = untrailingslashit( home_url( '/' ) );
+		$pages       = self::list_target_pages();
+
+		$cancel_url = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG );
 		?>
-		<div class="wrap pbd-exp-wrap">
+		<div class="wrap pbd-exp-wrap pbd-exp-edit-screen">
 			<h1 class="wp-heading-inline">
 				<?php echo $is_new ? 'Add Experiment' : 'Edit experiment: ' . esc_html( $experiment['name'] ); ?>
 			</h1>
 			<?php if ( $experiment['id'] ) : ?>
 				<a class="page-title-action" href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&action=dashboard&id=' . $experiment['id'] ) ); ?>">View dashboard</a>
 			<?php endif; ?>
-			<a class="page-title-action" href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG ) ); ?>">&larr; All experiments</a>
+			<a class="page-title-action" href="<?php echo esc_url( $cancel_url ); ?>">&larr; All experiments</a>
 			<hr class="wp-header-end">
+
+			<?php if ( $is_new ) : ?>
+				<p class="pbd-exp-page-lede">Name it, pick where it runs, define variants, then save.</p>
+			<?php endif; ?>
 
 			<?php
 			$flash = isset( $_GET['message'] ) ? sanitize_key( wp_unslash( $_GET['message'] ) ) : '';
@@ -79,83 +88,93 @@ final class PBD_Exp_Admin_Edit {
 			}
 			?>
 
-			<?php if ( $is_new ) : ?>
-				<div class="pbd-exp-help">
-					<strong>Setting up an experiment.</strong> Name it, pick the target path on this site, and define at least two variants. Save first; you can start the experiment from the status bar that appears after saving.
-				</div>
-			<?php elseif ( $is_locked ) : ?>
+			<?php if ( $is_locked ) : ?>
 				<div class="notice notice-warning"><p><strong>This experiment is concluded.</strong> Configuration is locked. To re-run, clone it as a new experiment.</p></div>
 			<?php endif; ?>
 
 			<?php if ( $experiment['id'] ) : ?>
 				<?php self::render_status_bar( $experiment ); ?>
+			<?php elseif ( ! $is_locked ) : ?>
+				<p class="pbd-exp-status-placeholder">Status appears here after you save.</p>
 			<?php endif; ?>
 
-			<form method="post">
+			<form method="post" id="pbd-exp-form" novalidate>
 				<?php wp_nonce_field( PBD_Exp_Admin::NONCE_ACTION ); ?>
 				<input type="hidden" name="pbd_exp_action" value="save_experiment">
 				<input type="hidden" name="experiment_id" value="<?php echo esc_attr( $experiment['id'] ); ?>">
 
+				<div class="pbd-exp-validation-summary" id="pbd-exp-validation" hidden>
+					<strong>Please fix these before saving:</strong>
+					<ul></ul>
+				</div>
+
 				<div class="pbd-exp-card" id="pbd-exp-basics">
-					<div class="pbd-exp-card__header">
-						<h2>Basics</h2>
-						<p class="pbd-exp-card__hint">What this experiment is and where it runs.</p>
-					</div>
-					<div class="pbd-exp-card__body">
-						<table class="form-table" role="presentation">
-							<tr>
-								<th scope="row"><label for="name">Name</label></th>
-								<td>
-									<input class="regular-text" id="name" name="name" value="<?php echo esc_attr( $experiment['name'] ); ?>" <?php disabled( $is_locked ); ?> placeholder="Free classes homepage test">
-									<p class="description">A human-readable name. Shown on the dashboard and in the archive.</p>
-								</td>
-							</tr>
-							<tr>
-								<th scope="row"><label for="experiment_key">Key</label></th>
-								<td>
-									<input class="regular-text" id="experiment_key" name="experiment_key" value="<?php echo esc_attr( $experiment['experiment_key'] ); ?>" <?php wp_readonly( (bool) $experiment['id'] ); ?> <?php disabled( $is_locked ); ?> placeholder="free_classes_homepage" data-auto-from="#name">
-									<p class="description">Lowercase identifier. Used in event tracking, dataLayer, and Clarity tags. <?php echo $is_new ? 'Auto-fills from the name; you can edit it before saving.' : 'Cannot be changed once saved.'; ?></p>
-								</td>
-							</tr>
-							<tr>
-								<th scope="row"><label for="target_path">Target path</label></th>
-								<td>
-									<input class="regular-text" id="target_path" name="target_path" value="<?php echo esc_attr( $experiment['target_path'] ); ?>" <?php disabled( $is_locked ); ?>>
-									<p class="description">Site-root-relative path. Example: <code>/free-classes</code>. Use <code>/</code> for the homepage.</p>
-								</td>
-							</tr>
-							<tr>
-								<th scope="row"><label for="cookie_days">Cookie days</label></th>
-								<td>
-									<input class="small-text" id="cookie_days" name="cookie_days" type="number" min="1" value="<?php echo esc_attr( $experiment['cookie_days'] ); ?>" <?php disabled( $is_locked ); ?>>
-									<p class="description">How long a returning visitor keeps the same variant. 90 is a good default for most pages.</p>
-								</td>
-							</tr>
-							<tr>
-								<th scope="row">Include logged-in users</th>
-								<td>
-									<label>
-										<input type="checkbox" name="include_logged_in" value="1" <?php checked( ! empty( $experiment['include_logged_in'] ) ); ?> <?php disabled( $is_locked ); ?>>
-										Assign and track logged-in WordPress users for this experiment
-									</label>
-									<p class="description">Default off. Internal browsing shouldn't pollute results.</p>
-								</td>
-							</tr>
-							<tr>
-								<th scope="row"><label for="notes">Notes</label></th>
-								<td>
-									<textarea id="notes" name="notes" rows="3" class="large-text" <?php disabled( $is_locked ); ?>><?php echo esc_textarea( isset( $experiment['notes'] ) ? $experiment['notes'] : '' ); ?></textarea>
-									<p class="description">Optional. What you're testing, your hypothesis, what you learned. Shown on the dashboard and archive.</p>
-								</td>
-							</tr>
-						</table>
+					<div class="pbd-exp-card__body pbd-exp-stack">
+						<div class="pbd-exp-field">
+							<label for="name" class="pbd-exp-field__label">Name <span class="pbd-exp-req">*</span></label>
+							<input type="text" class="regular-text pbd-exp-input" id="name" name="name" value="<?php echo esc_attr( $experiment['name'] ); ?>" <?php disabled( $is_locked ); ?> placeholder="Free classes homepage test" required>
+							<?php if ( $is_new ) : ?>
+								<div class="pbd-exp-key-badge" id="pbd-exp-key-badge" hidden>
+									Key: <code id="pbd-exp-key-preview"></code>
+									<button type="button" class="pbd-exp-link-btn" id="pbd-exp-key-edit">edit</button>
+								</div>
+							<?php endif; ?>
+							<div class="pbd-exp-field" id="pbd-exp-key-field" <?php echo $is_new ? 'hidden' : ''; ?> style="margin-top:10px;">
+								<label for="experiment_key" class="pbd-exp-field__label">Key</label>
+								<input type="text" class="regular-text pbd-exp-input" id="experiment_key" name="experiment_key" value="<?php echo esc_attr( $experiment['experiment_key'] ); ?>" <?php wp_readonly( (bool) $experiment['id'] ); ?> <?php disabled( $is_locked ); ?> placeholder="free_classes_homepage" data-auto-from="#name">
+								<p class="pbd-exp-field__hint">Lowercase identifier used in event tracking, dataLayer, and Clarity tags. <?php echo $is_new ? 'Auto-fills from the name.' : 'Cannot be changed once saved.'; ?></p>
+							</div>
+						</div>
+
+						<div class="pbd-exp-field">
+							<label for="target_path" class="pbd-exp-field__label">Target URL <span class="pbd-exp-req">*</span></label>
+							<div class="pbd-exp-url-input">
+								<span class="pbd-exp-url-input__origin" title="<?php echo esc_attr( $site_origin ); ?>"><?php echo esc_html( $site_origin ); ?></span>
+								<input class="pbd-exp-url-input__path" id="target_path" name="target_path" value="<?php echo esc_attr( $experiment['target_path'] ); ?>" <?php disabled( $is_locked ); ?> placeholder="/free-classes" list="pbd-exp-page-list" autocomplete="off" required>
+							</div>
+							<?php if ( ! empty( $pages ) ) : ?>
+								<datalist id="pbd-exp-page-list">
+									<?php foreach ( $pages as $p ) : ?>
+										<option value="<?php echo esc_attr( $p['path'] ); ?>"><?php echo esc_html( $p['title'] ); ?></option>
+									<?php endforeach; ?>
+								</datalist>
+								<p class="pbd-exp-field__hint">Type or pick from the dropdown. Use <code>/</code> for the homepage.</p>
+							<?php else : ?>
+								<p class="pbd-exp-field__hint">Site-root-relative path. Use <code>/</code> for the homepage.</p>
+							<?php endif; ?>
+						</div>
+
+						<div class="pbd-exp-field pbd-exp-field--inline">
+							<label for="cookie_days" class="pbd-exp-field__label">Cookie days</label>
+							<div class="pbd-exp-inline-row">
+								<input class="small-text pbd-exp-input" id="cookie_days" name="cookie_days" type="number" min="1" value="<?php echo esc_attr( $experiment['cookie_days'] ); ?>" <?php disabled( $is_locked ); ?>>
+								<span class="pbd-exp-helper-text" id="pbd-exp-cookie-helper"></span>
+							</div>
+							<p class="pbd-exp-field__hint">How long a returning visitor keeps the same variant.</p>
+						</div>
+
+						<div class="pbd-exp-field">
+							<label class="pbd-exp-checkbox">
+								<input type="checkbox" id="include_logged_in" name="include_logged_in" value="1" <?php checked( ! empty( $experiment['include_logged_in'] ) ); ?> <?php disabled( $is_locked ); ?>>
+								Include logged-in users in this experiment
+							</label>
+							<div class="pbd-exp-warning-note" id="pbd-exp-loggedin-warning" <?php if ( empty( $experiment['include_logged_in'] ) ) echo 'hidden'; ?>>
+								<strong>Heads-up:</strong> your own admin sessions will now be counted in results.
+							</div>
+						</div>
+
+						<div class="pbd-exp-field">
+							<label for="notes" class="pbd-exp-field__label">Notes</label>
+							<textarea id="notes" name="notes" rows="3" class="large-text pbd-exp-input" <?php disabled( $is_locked ); ?> placeholder="Hypothesis: changing X will increase Y because&hellip;"><?php echo esc_textarea( isset( $experiment['notes'] ) ? $experiment['notes'] : '' ); ?></textarea>
+							<p class="pbd-exp-field__hint">Optional. Shown on the dashboard and archive.</p>
+						</div>
 					</div>
 				</div>
 
 				<div class="pbd-exp-card">
 					<div class="pbd-exp-card__header">
 						<h2>Variants</h2>
-						<p class="pbd-exp-card__hint">List Control first. Visitors are split across variants by relative weight.</p>
+						<p class="pbd-exp-card__hint">List Control first. Visitors are split by relative weight.</p>
 					</div>
 					<div class="pbd-exp-card__body">
 						<?php self::render_variants_table( $variants, $is_locked ); ?>
@@ -165,11 +184,12 @@ final class PBD_Exp_Admin_Edit {
 				<div class="pbd-exp-card">
 					<div class="pbd-exp-card__header">
 						<h2>Metrics</h2>
-						<p class="pbd-exp-card__hint">Each metric is one event name fired from the page. The first active metric drives the headline rate.</p>
+						<p class="pbd-exp-card__hint">One event name per metric. First active metric drives the headline rate.</p>
+						<button type="button" class="pbd-exp-help-btn" id="pbd-exp-metric-help-btn" aria-label="How to fire metric events" aria-expanded="false">?</button>
 					</div>
 					<div class="pbd-exp-card__body">
+						<?php self::render_metric_snippet_popover( $experiment ); ?>
 						<?php self::render_metrics_table( $metrics, $is_locked ); ?>
-						<?php self::render_metric_snippet_help( $experiment ); ?>
 					</div>
 				</div>
 
@@ -190,19 +210,59 @@ final class PBD_Exp_Admin_Edit {
 					</div>
 				<?php endif; ?>
 
-				<?php if ( ! $is_locked ) : ?>
-					<p>
-						<?php submit_button( $is_new ? 'Save and continue' : 'Save changes', 'primary', 'submit', false ); ?>
-						<?php if ( ! $is_new ) : ?>
-							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG ) ); ?>" style="margin-left:8px;">Cancel</a>
-						<?php endif; ?>
-					</p>
-				<?php else : ?>
-					<?php submit_button( 'Save winner', 'primary', 'submit', true ); ?>
-				<?php endif; ?>
+				<div class="pbd-exp-save-bar-spacer" aria-hidden="true"></div>
+
+				<div class="pbd-exp-save-bar" role="region" aria-label="Save actions">
+					<a class="pbd-exp-save-bar__cancel" href="<?php echo esc_url( $cancel_url ); ?>">Cancel</a>
+					<span class="pbd-exp-save-bar__hint" id="pbd-exp-save-hint"></span>
+					<?php if ( ! $is_locked ) : ?>
+						<button type="submit" class="button button-primary button-large pbd-exp-save-bar__save">
+							<?php echo $is_new ? 'Save and continue' : 'Save changes'; ?>
+						</button>
+					<?php else : ?>
+						<button type="submit" class="button button-primary button-large pbd-exp-save-bar__save">Save winner</button>
+					<?php endif; ?>
+				</div>
 			</form>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Returns a list of published pages and posts as { path, title } for the target picker.
+	 * Capped to 200 entries to keep the datalist sane.
+	 */
+	private static function list_target_pages() {
+		$out = array( array( 'path' => '/', 'title' => 'Home' ) );
+
+		$query = get_posts( array(
+			'post_type'      => array( 'page', 'post' ),
+			'post_status'    => 'publish',
+			'posts_per_page' => 200,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+			'no_found_rows'  => true,
+			'fields'         => 'ids',
+		) );
+
+		foreach ( $query as $pid ) {
+			$link = get_permalink( $pid );
+			if ( ! $link ) {
+				continue;
+			}
+			$parts = wp_parse_url( $link );
+			$path  = isset( $parts['path'] ) ? $parts['path'] : '/';
+			$path  = untrailingslashit( $path );
+			if ( '' === $path ) {
+				$path = '/';
+			}
+			$out[] = array(
+				'path'  => $path,
+				'title' => get_the_title( $pid ),
+			);
+		}
+
+		return $out;
 	}
 
 	private static function render_status_bar( $experiment ) {
@@ -273,30 +333,31 @@ final class PBD_Exp_Admin_Edit {
 		<?php
 	}
 
-	private static function render_metric_snippet_help( $experiment ) {
+	private static function render_metric_snippet_popover( $experiment ) {
 		$key = $experiment['experiment_key'] ? $experiment['experiment_key'] : 'your_experiment_key';
 		?>
-		<details class="pbd-exp-snippet-help" style="margin-top:14px;">
-			<summary style="cursor:pointer;color:#2271b1;font-size:13px;">How do I fire a metric event from the page?</summary>
-			<div style="margin-top:8px;font-size:13px;color:#3c434a;max-width:900px;">
-				<p style="margin:4px 0 6px;">Any of these will record an event against this experiment for the visitor's assigned variant. Use the metric's <em>event name</em>, not the metric key.</p>
-				<p style="margin:8px 0 4px;"><strong>JavaScript</strong> (recommended for buttons and dynamic UI):</p>
-				<div class="pbd-exp-snippet">
-					<code>PBDExperiments.track('opt_in', { experiment: '<?php echo esc_html( $key ); ?>', once: true });</code>
-					<button type="button" class="copy-btn">Copy</button>
-				</div>
-				<p style="margin:8px 0 4px;"><strong>Form attributes</strong> (fires on successful submit):</p>
-				<div class="pbd-exp-snippet">
-					<code>&lt;form data-pbd-exp="<?php echo esc_html( $key ); ?>" data-pbd-event="opt_in"&gt; ... &lt;/form&gt;</code>
-					<button type="button" class="copy-btn">Copy</button>
-				</div>
-				<p style="margin:8px 0 4px;"><strong>Shortcode</strong> (drop on a thank-you page or success view):</p>
-				<div class="pbd-exp-snippet">
-					<code>[pbd_experiment_event event="opt_in" experiment="<?php echo esc_html( $key ); ?>" once="1"]</code>
-					<button type="button" class="copy-btn">Copy</button>
-				</div>
+		<div class="pbd-exp-popover" id="pbd-exp-metric-help" hidden>
+			<div class="pbd-exp-popover__header">
+				<strong>How to fire a metric event</strong>
+				<button type="button" class="pbd-exp-popover__close" aria-label="Close">&times;</button>
 			</div>
-		</details>
+			<p>Use the metric's <em>event name</em> (not the key) from any of these:</p>
+			<p class="pbd-exp-popover__label"><strong>JavaScript</strong> &mdash; for buttons and dynamic UI:</p>
+			<div class="pbd-exp-snippet">
+				<code>PBDExperiments.track('opt_in', { experiment: '<?php echo esc_html( $key ); ?>', once: true });</code>
+				<button type="button" class="copy-btn">Copy</button>
+			</div>
+			<p class="pbd-exp-popover__label"><strong>Form attributes</strong> &mdash; fires on successful submit:</p>
+			<div class="pbd-exp-snippet">
+				<code>&lt;form data-pbd-exp="<?php echo esc_html( $key ); ?>" data-pbd-event="opt_in"&gt; ... &lt;/form&gt;</code>
+				<button type="button" class="copy-btn">Copy</button>
+			</div>
+			<p class="pbd-exp-popover__label"><strong>Shortcode</strong> &mdash; drop on a thank-you page:</p>
+			<div class="pbd-exp-snippet">
+				<code>[pbd_experiment_event event="opt_in" experiment="<?php echo esc_html( $key ); ?>" once="1"]</code>
+				<button type="button" class="copy-btn">Copy</button>
+			</div>
+		</div>
 		<?php
 	}
 
@@ -306,46 +367,68 @@ final class PBD_Exp_Admin_Edit {
 			$total_weight += max( 0, (int) $v['weight'] );
 		}
 		?>
-		<table class="widefat pbd-exp-table-variants" id="pbd-exp-variants">
+		<div class="pbd-exp-split-bar" id="pbd-exp-split-bar" aria-label="Traffic split between variants">
+			<?php foreach ( $variants as $i => $v ) :
+				$share = $total_weight > 0 ? round( ( max( 0, (int) $v['weight'] ) / $total_weight ) * 100 ) : 0;
+			?>
+				<div class="pbd-exp-split-bar__seg" data-row-index="<?php echo (int) $i; ?>" style="flex:<?php echo (int) max( 0, (int) $v['weight'] ); ?> 1 0;">
+					<span class="pbd-exp-split-bar__label"><?php echo esc_html( $v['label'] ); ?> <span class="pct"><?php echo (int) $share; ?>%</span></span>
+				</div>
+			<?php endforeach; ?>
+		</div>
+		<p class="pbd-exp-split-bar__warning" id="pbd-exp-split-warning" hidden>Variant weights total <span data-total>0</span>%, not 100%.</p>
+
+		<table class="pbd-exp-table pbd-exp-table-variants" id="pbd-exp-variants">
 			<thead>
 				<tr>
-					<th style="width:24px;"></th>
-					<th>Key</th>
-					<th>Label</th>
-					<th style="width:140px;">Weight / share</th>
-					<th style="width:120px;">Type</th>
-					<th>Destination</th>
-					<th style="width:32px;"></th>
+					<th class="col-handle" aria-label="Reorder"></th>
+					<th class="col-key">Key</th>
+					<th class="col-label">Label</th>
+					<th class="col-weight">Weight / share</th>
+					<th class="col-type">Type</th>
+					<th class="col-dest"><span class="js-dest-label">Template file</span></th>
+					<th class="col-remove" aria-label="Remove"></th>
 				</tr>
 			</thead>
 			<tbody>
 				<?php foreach ( $variants as $i => $v ) :
 					$share = $total_weight > 0 ? round( ( max( 0, (int) $v['weight'] ) / $total_weight ) * 100 ) : 0;
+					$variant_label = $v['label'] ? $v['label'] : 'variant ' . ( $i + 1 );
 				?>
 					<tr class="pbd-exp-variant-row" data-existing-id="<?php echo esc_attr( $v['id'] ); ?>">
-						<td class="pbd-exp-drag" title="Drag to reorder">&#x2630;</td>
+						<td class="pbd-exp-drag" title="Drag to reorder" aria-label="Drag to reorder">
+							<span class="pbd-exp-drag__grip" aria-hidden="true"></span>
+						</td>
 						<td>
 							<input type="hidden" name="variants[<?php echo $i; ?>][id]" value="<?php echo esc_attr( $v['id'] ); ?>">
 							<input type="text" name="variants[<?php echo $i; ?>][variant_key]" value="<?php echo esc_attr( $v['variant_key'] ); ?>" placeholder="control" <?php disabled( $is_locked ); ?>>
 						</td>
-						<td><input type="text" name="variants[<?php echo $i; ?>][label]" value="<?php echo esc_attr( $v['label'] ); ?>" placeholder="Control" <?php disabled( $is_locked ); ?>></td>
+						<td><input type="text" name="variants[<?php echo $i; ?>][label]" value="<?php echo esc_attr( $v['label'] ); ?>" placeholder="Control" class="pbd-exp-variant-label" <?php disabled( $is_locked ); ?>></td>
 						<td>
 							<input type="number" name="variants[<?php echo $i; ?>][weight]" min="0" value="<?php echo esc_attr( $v['weight'] ); ?>" class="pbd-exp-weight" <?php disabled( $is_locked ); ?>>
 							<span class="pbd-exp-variant-share"><?php echo (int) $share; ?>%</span>
 						</td>
 						<td>
-							<select name="variants[<?php echo $i; ?>][variant_type]" class="pbd-exp-variant-type" <?php disabled( $is_locked ); ?>>
-								<option value="template" <?php selected( $v['variant_type'], 'template' ); ?>>Template</option>
-								<option value="redirect" <?php selected( $v['variant_type'], 'redirect' ); ?>>Redirect</option>
-							</select>
+							<div class="pbd-exp-segmented pbd-exp-variant-type-seg" role="radiogroup" aria-label="Destination type">
+								<label>
+									<input type="radio" name="variants[<?php echo $i; ?>][variant_type]" value="template" class="pbd-exp-variant-type" <?php checked( $v['variant_type'], 'template' ); ?> <?php disabled( $is_locked ); ?>>
+									<span>Template</span>
+								</label>
+								<label>
+									<input type="radio" name="variants[<?php echo $i; ?>][variant_type]" value="redirect" class="pbd-exp-variant-type" <?php checked( $v['variant_type'], 'redirect' ); ?> <?php disabled( $is_locked ); ?>>
+									<span>Redirect</span>
+								</label>
+							</div>
 						</td>
-						<td>
-							<input type="text" name="variants[<?php echo $i; ?>][template_path]" value="<?php echo esc_attr( $v['template_path'] ); ?>" placeholder="page-variant.php" class="pbd-exp-template-path" style="width:100%;<?php echo 'redirect' === $v['variant_type'] ? 'display:none;' : ''; ?>" <?php disabled( $is_locked ); ?>>
-							<input type="text" name="variants[<?php echo $i; ?>][redirect_url]" value="<?php echo esc_attr( $v['redirect_url'] ); ?>" placeholder="/free-classes-v2/" class="pbd-exp-redirect-url" style="width:100%;<?php echo 'redirect' === $v['variant_type'] ? '' : 'display:none;'; ?>" <?php disabled( $is_locked ); ?>>
+						<td class="pbd-exp-dest-cell">
+							<input type="text" name="variants[<?php echo $i; ?>][template_path]" value="<?php echo esc_attr( $v['template_path'] ); ?>" placeholder="page-variant.php" class="pbd-exp-template-path" <?php if ( 'redirect' === $v['variant_type'] ) echo 'hidden'; ?> <?php disabled( $is_locked ); ?>>
+							<input type="text" name="variants[<?php echo $i; ?>][redirect_url]" value="<?php echo esc_attr( $v['redirect_url'] ); ?>" placeholder="/free-classes-v2/" class="pbd-exp-redirect-url" <?php if ( 'redirect' !== $v['variant_type'] ) echo 'hidden'; ?> <?php disabled( $is_locked ); ?>>
 						</td>
-						<td>
+						<td class="col-remove">
 							<?php if ( ! $is_locked ) : ?>
-								<button type="button" class="pbd-exp-remove-row" title="Remove variant" aria-label="Remove variant">&times;</button>
+								<button type="button" class="pbd-exp-remove-row" title="Remove variant" aria-label="Remove <?php echo esc_attr( $variant_label ); ?>">
+									<span class="dashicons dashicons-no-alt" aria-hidden="true"></span>
+								</button>
 							<?php endif; ?>
 						</td>
 					</tr>
@@ -353,26 +436,28 @@ final class PBD_Exp_Admin_Edit {
 			</tbody>
 		</table>
 		<?php if ( ! $is_locked ) : ?>
-			<p><button type="button" class="button" id="pbd-exp-add-variant">+ Add variant</button></p>
+			<p class="pbd-exp-table-actions"><button type="button" class="button" id="pbd-exp-add-variant">+ Add variant</button></p>
 		<?php endif; ?>
-		<p class="description"><strong>Template</strong> swaps the page template file (resolves from child theme first, then parent). <strong>Redirect</strong> sends the visitor to another same-site URL. Off-site redirects are rejected on save.</p>
+		<p class="pbd-exp-field__hint"><strong>Template</strong> swaps the page template file (child theme first, then parent). <strong>Redirect</strong> sends the visitor to another same-site URL. Off-site redirects are rejected on save.</p>
 		<?php
 	}
 
 	private static function render_metrics_table( $metrics, $is_locked ) {
 		?>
-		<table class="widefat pbd-exp-table-metrics" id="pbd-exp-metrics">
+		<table class="pbd-exp-table pbd-exp-table-metrics" id="pbd-exp-metrics">
 			<thead>
 				<tr>
 					<th>Key</th>
 					<th>Name</th>
 					<th>Event name (fired from page)</th>
-					<th style="width:80px;">Active</th>
-					<th style="width:32px;"></th>
+					<th class="col-active">Active</th>
+					<th class="col-remove" aria-label="Remove"></th>
 				</tr>
 			</thead>
 			<tbody>
-				<?php foreach ( $metrics as $i => $m ) : ?>
+				<?php foreach ( $metrics as $i => $m ) :
+					$metric_label = ! empty( $m['name'] ) ? $m['name'] : ( ! empty( $m['metric_key'] ) ? $m['metric_key'] : 'metric ' . ( $i + 1 ) );
+				?>
 					<tr class="pbd-exp-metric-row">
 						<td>
 							<input type="hidden" name="metrics[<?php echo $i; ?>][id]" value="<?php echo esc_attr( isset( $m['id'] ) ? $m['id'] : 0 ); ?>">
@@ -380,10 +465,12 @@ final class PBD_Exp_Admin_Edit {
 						</td>
 						<td><input type="text" name="metrics[<?php echo $i; ?>][name]" value="<?php echo esc_attr( $m['name'] ); ?>" placeholder="Opt-in" <?php disabled( $is_locked ); ?>></td>
 						<td><input type="text" name="metrics[<?php echo $i; ?>][event_name]" value="<?php echo esc_attr( $m['event_name'] ); ?>" placeholder="opt_in" <?php disabled( $is_locked ); ?>></td>
-						<td><input type="checkbox" name="metrics[<?php echo $i; ?>][active]" value="1" <?php checked( ! empty( $m['active'] ) ); ?> <?php disabled( $is_locked ); ?>></td>
-						<td>
+						<td class="col-active"><input type="checkbox" name="metrics[<?php echo $i; ?>][active]" value="1" <?php checked( ! empty( $m['active'] ) ); ?> <?php disabled( $is_locked ); ?>></td>
+						<td class="col-remove">
 							<?php if ( ! $is_locked ) : ?>
-								<button type="button" class="pbd-exp-remove-row" title="Remove metric" aria-label="Remove metric">&times;</button>
+								<button type="button" class="pbd-exp-remove-row" title="Remove metric" aria-label="Remove <?php echo esc_attr( $metric_label ); ?>">
+									<span class="dashicons dashicons-no-alt" aria-hidden="true"></span>
+								</button>
 							<?php endif; ?>
 						</td>
 					</tr>
@@ -391,9 +478,9 @@ final class PBD_Exp_Admin_Edit {
 			</tbody>
 		</table>
 		<?php if ( ! $is_locked ) : ?>
-			<p><button type="button" class="button" id="pbd-exp-add-metric">+ Add metric</button></p>
+			<p class="pbd-exp-table-actions"><button type="button" class="button" id="pbd-exp-add-metric">+ Add metric</button></p>
 		<?php endif; ?>
-		<p class="description"><strong>Key</strong> is for your records, <strong>Name</strong> shows up on the dashboard, <strong>Event name</strong> is what the page actually fires (keep it short and snake_case). Inactive metrics stop counting but their history stays.</p>
+		<p class="pbd-exp-field__hint"><strong>Key</strong> is for your records, <strong>Name</strong> shows up on the dashboard, <strong>Event name</strong> is what the page fires (snake_case). Inactive metrics stop counting but their history stays.</p>
 		<?php
 	}
 
