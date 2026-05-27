@@ -809,7 +809,19 @@ final class PBD_Exp_Admin_Edit {
 			return;
 		}
 		PBD_Exp_Repo::delete_experiment( $id );
-		wp_safe_redirect( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&message=deleted' ) );
+
+		$default = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG );
+		$target  = $default;
+		if ( ! empty( $_POST['redirect_to'] ) ) {
+			$candidate = wp_unslash( $_POST['redirect_to'] );
+			$admin_url = admin_url();
+			if ( 0 === strpos( $candidate, $admin_url ) ) {
+				$target = $candidate;
+			}
+		}
+		$target = add_query_arg( 'message', 'deleted', $target );
+
+		wp_safe_redirect( $target );
 		exit;
 	}
 

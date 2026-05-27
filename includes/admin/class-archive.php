@@ -26,6 +26,13 @@ final class PBD_Exp_Admin_Archive {
 			<a class="page-title-action" href="<?php echo esc_url( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG ) ); ?>">&larr; Active experiments</a>
 			<hr class="wp-header-end">
 
+			<?php
+			$message = isset( $_GET['message'] ) ? sanitize_key( wp_unslash( $_GET['message'] ) ) : '';
+			if ( 'deleted' === $message ) {
+				echo '<div class="notice notice-success is-dismissible"><p>Experiment deleted.</p></div>';
+			}
+			?>
+
 			<?php if ( empty( $all_concluded ) ) : ?>
 				<div class="pbd-exp-empty">
 					<h3>No concluded experiments yet</h3>
@@ -69,7 +76,14 @@ final class PBD_Exp_Admin_Archive {
 			$duration_label = 1 === $days ? '1 day' : ( number_format_i18n( $days ) . ' days' );
 		}
 
-		$edit_url = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&action=edit&id=' . $experiment['id'] );
+		$edit_url    = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&action=edit&id=' . $experiment['id'] );
+		$archive_url = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '-archive' );
+		$key         = $experiment['experiment_key'];
+		$delete_prompt = sprintf(
+			'Permanently deleting "%s" removes its snapshot and all historical events. Type the experiment key "%s" to confirm.',
+			$experiment['name'],
+			$key
+		);
 
 		?>
 		<div class="pbd-exp-archive-item">
@@ -85,6 +99,13 @@ final class PBD_Exp_Admin_Archive {
 						<input type="hidden" name="pbd_exp_action" value="clone_experiment">
 						<input type="hidden" name="experiment_id" value="<?php echo esc_attr( $experiment['id'] ); ?>">
 						<button type="submit" class="button button-small">Clone</button>
+					</form>
+					<form method="post" class="pbd-exp-delete-form" style="display:inline;margin:0;" data-confirm-key="<?php echo esc_attr( $key ); ?>" data-confirm-prompt="<?php echo esc_attr( $delete_prompt ); ?>">
+						<?php wp_nonce_field( PBD_Exp_Admin::NONCE_ACTION ); ?>
+						<input type="hidden" name="pbd_exp_action" value="delete_experiment">
+						<input type="hidden" name="experiment_id" value="<?php echo esc_attr( $experiment['id'] ); ?>">
+						<input type="hidden" name="redirect_to" value="<?php echo esc_attr( $archive_url ); ?>">
+						<button type="submit" class="button button-small pbd-exp-btn-danger">Delete</button>
 					</form>
 				</span>
 			</h2>
