@@ -600,12 +600,21 @@ final class PBD_Exp_Admin_Edit {
 							<input type="text" name="metrics[<?php echo $i; ?>][metric_key]" value="<?php echo esc_attr( $m['metric_key'] ); ?>" placeholder="opt_in" class="pbd-exp-metric-key" <?php disabled( $is_locked ); ?>>
 						</td>
 						<td><input type="text" name="metrics[<?php echo $i; ?>][name]" value="<?php echo esc_attr( $m['name'] ); ?>" placeholder="Opt-in" class="pbd-exp-metric-name" <?php disabled( $is_locked ); ?>></td>
+						<?php $trigger_type = ! empty( $m['trigger_type'] ) ? $m['trigger_type'] : 'page'; ?>
 						<td>
-							<select class="pbd-exp-metric-trigger" <?php disabled( $is_locked ); ?>>
-								<option value="page">Visiting a specific page</option>
-								<option value="form">Submitting a form</option>
-								<option value="js">Custom JavaScript</option>
+							<select name="metrics[<?php echo $i; ?>][trigger_type]" class="pbd-exp-metric-trigger" <?php disabled( $is_locked ); ?>>
+								<option value="page" <?php selected( $trigger_type, 'page' ); ?>>Visiting a specific page</option>
+								<option value="form" <?php selected( $trigger_type, 'form' ); ?>>Submitting a form</option>
+								<option value="js" <?php selected( $trigger_type, 'js' ); ?>>Custom JavaScript</option>
 							</select>
+							<span class="pbd-exp-metric-form-config" <?php echo 'form' === $trigger_type ? '' : 'hidden'; ?>>
+								<input type="text" name="metrics[<?php echo $i; ?>][selector]" value="<?php echo esc_attr( isset( $m['selector'] ) ? $m['selector'] : '' ); ?>" placeholder="#inf_form, .infusion-form, form.optin" class="pbd-exp-metric-selector" <?php disabled( $is_locked ); ?>>
+								<?php $form_type = isset( $m['form_type'] ) ? $m['form_type'] : ''; ?>
+								<select name="metrics[<?php echo $i; ?>][form_type]" class="pbd-exp-metric-formtype" <?php disabled( $is_locked ); ?>>
+									<option value="native" <?php selected( $form_type, 'native' ); ?>>Standard form (incl. Infusionsoft / Keap)</option>
+									<option value="cf7" <?php selected( $form_type, 'cf7' ); ?>>Contact Form 7</option>
+								</select>
+							</span>
 						</td>
 						<td class="pbd-exp-keys-col"><input type="text" name="metrics[<?php echo $i; ?>][event_name]" value="<?php echo esc_attr( $m['event_name'] ); ?>" placeholder="opt_in" class="pbd-exp-metric-event" <?php disabled( $is_locked ); ?>></td>
 						<td class="col-active"><input type="checkbox" name="metrics[<?php echo $i; ?>][active]" value="1" <?php checked( ! empty( $m['active'] ) ); ?> <?php disabled( $is_locked ); ?>></td>
@@ -647,12 +656,10 @@ final class PBD_Exp_Admin_Edit {
 				<button type="button" class="copy-btn">Copy</button>
 			</div>
 		</div>
-		<div class="pbd-exp-metric-snippet" data-snippet-for="form" hidden>
-			<p class="pbd-exp-metric-snippet__lede"><strong>Add these attributes to your form's HTML</strong> so it fires when someone submits it successfully.</p>
-			<div class="pbd-exp-snippet">
-				<code class="pbd-exp-snippet-code">&lt;form data-pbd-exp=&quot;<span class="pbd-exp-snippet-exp"><?php echo esc_html( $exp_key ); ?></span>&quot; data-pbd-event=&quot;<span class="pbd-exp-snippet-event"><?php echo esc_html( $event ); ?></span>&quot;&gt; &hellip; &lt;/form&gt;</code>
-				<button type="button" class="copy-btn">Copy</button>
-			</div>
+		<div class="pbd-exp-metric-snippet" data-snippet-for="form">
+			<p class="pbd-exp-metric-snippet__lede"><strong>Enter the CSS selector for the form above</strong> (e.g. <code>#inf_form</code>, <code>.infusion-form</code>, <code>form.optin</code>). On a page with several forms, this is how you target the right one. The conversion is recorded the moment that form is submitted, on the test page itself, so it works even when the form posts off-site (Infusionsoft / Keap) and redirects back.</p>
+			<p class="pbd-exp-metric-snippet__how">Right-click the form in your browser &rarr; Inspect &rarr; read its <code>id</code> or <code>class</code>. Prefer an <code>#id</code>: it is the most specific.</p>
+			<p class="pbd-exp-metric-snippet__how"><em>Advanced (optional):</em> instead of a selector you can hand-add attributes to the form's HTML &mdash; <code>&lt;form data-pbd-exp=&quot;<span class="pbd-exp-snippet-exp"><?php echo esc_html( $exp_key ); ?></span>&quot; data-pbd-event=&quot;<span class="pbd-exp-snippet-event"><?php echo esc_html( $event ); ?></span>&quot;&gt;</code></p>
 		</div>
 		<div class="pbd-exp-metric-snippet" data-snippet-for="js" hidden>
 			<p class="pbd-exp-metric-snippet__lede"><strong>Call this from JavaScript</strong> when the conversion happens (button click, ajax response, custom flow).</p>
@@ -787,14 +794,35 @@ final class PBD_Exp_Admin_Edit {
 				continue;
 			}
 
+			$trigger = sanitize_key( wp_unslash( $row['trigger_type'] ?? 'page' ) );
+			if ( ! in_array( $trigger, array( 'page', 'form', 'js' ), true ) ) {
+				$trigger = 'page';
+			}
+
+			$selector = isset( $row['selector'] ) ? self::sanitize_selector( wp_unslash( $row['selector'] ) ) : '';
+
+			$form_type = sanitize_key( wp_unslash( $row['form_type'] ?? '' ) );
+			if ( ! in_array( $form_type, array( '', 'native', 'cf7' ), true ) ) {
+				$form_type = '';
+			}
+
+			// Selector and form platform only make sense for form triggers.
+			if ( 'form' !== $trigger ) {
+				$selector  = '';
+				$form_type = '';
+			}
+
 			$id = PBD_Exp_Repo::upsert_metric(
 				$experiment_id,
 				array(
-					'metric_key' => $key,
-					'name'       => $name ? $name : $key,
-					'event_name' => $event,
-					'active'     => ! empty( $row['active'] ),
-					'sort_order' => $order++,
+					'metric_key'   => $key,
+					'name'         => $name ? $name : $key,
+					'event_name'   => $event,
+					'trigger_type' => $trigger,
+					'selector'     => $selector,
+					'form_type'    => $form_type,
+					'active'       => ! empty( $row['active'] ),
+					'sort_order'   => $order++,
 				)
 			);
 			$kept[] = $id;
@@ -866,11 +894,14 @@ final class PBD_Exp_Admin_Edit {
 		$morder = 0;
 		foreach ( $src_metrics as $m ) {
 			PBD_Exp_Repo::upsert_metric( $new_id, array(
-				'metric_key' => $m['metric_key'],
-				'name'       => $m['name'],
-				'event_name' => $m['event_name'],
-				'active'     => ! empty( $m['active'] ),
-				'sort_order' => $morder++,
+				'metric_key'   => $m['metric_key'],
+				'name'         => $m['name'],
+				'event_name'   => $m['event_name'],
+				'trigger_type' => isset( $m['trigger_type'] ) ? $m['trigger_type'] : 'page',
+				'selector'     => isset( $m['selector'] ) ? $m['selector'] : '',
+				'form_type'    => isset( $m['form_type'] ) ? $m['form_type'] : '',
+				'active'       => ! empty( $m['active'] ),
+				'sort_order'   => $morder++,
 			) );
 		}
 
@@ -944,6 +975,28 @@ final class PBD_Exp_Admin_Edit {
 		$value = preg_replace( '/[^a-z0-9]+/', '_', $value );
 		$value = trim( $value, '_' );
 		return substr( $value, 0, 64 );
+	}
+
+	/**
+	 * Sanitize a user-entered CSS selector before it is stored and later emitted
+	 * into the inline front-end config (JSON) and used by element.matches().
+	 * Strips characters that have no place in a selector and that could break out
+	 * of the inline <script> (angle brackets, backticks, control chars), keeps the
+	 * realistic selector vocabulary, and caps to the column width.
+	 */
+	private static function sanitize_selector( $raw ) {
+		$value = trim( (string) $raw );
+		// Drop control characters and the inline-script breakout vector.
+		$value = preg_replace( '/[\x00-\x1f<>`]+/', '', $value );
+		// Keep only characters used by real selectors: identifiers, combinators,
+		// attribute/pseudo syntax, and whitespace.
+		$value = preg_replace( '/[^a-zA-Z0-9 #\.\-_\[\]="\':\(\),\*>\+~@]/', '', $value );
+		if ( function_exists( 'mb_substr' ) ) {
+			$value = mb_substr( $value, 0, 255 );
+		} else {
+			$value = substr( $value, 0, 255 );
+		}
+		return $value;
 	}
 
 	private static function is_same_site( $url ) {

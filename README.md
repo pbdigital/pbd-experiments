@@ -27,7 +27,19 @@ From here on the plugin keeps itself current: it checks the public [pbdigital/pb
 
 ## Firing events from a page
 
-Three equivalent ways, pick whichever fits the surface you're instrumenting.
+### Recommended: configure the metric's trigger in the editor
+
+Each metric has a **"What triggers it?"** setting. For a form conversion, choose **Submitting a form** and enter the **CSS selector** of the form you want to measure (e.g. `#inf_form`, `.infusion-form`, `form.optin`), plus the form platform (Standard, which covers Infusionsoft / Keap, or Contact Form 7).
+
+This is the most reliable option and the one to reach for by default, because:
+
+- **It targets one form.** On a page with several forms (multiple opt-ins, a modal form, a help form), only the form matching the selector fires the metric. The others are ignored.
+- **It survives cross-domain redirects.** The conversion is recorded the instant the form is submitted, on the test page itself, where the visitor's cookie and variant are present. It does **not** depend on the cookie surviving a hop through an off-site processor (Infusionsoft / Keap). This is the failure the selector trigger exists to fix: a thank-you-page shortcode reached after such a hop loses the cookie and records the conversion with no variant.
+- **No markup editing.** You don't touch the form's HTML; the plugin binds to it by selector.
+
+Supported platforms this release: Standard native forms (including Infusionsoft / Keap, which post off-site and redirect back) and Contact Form 7. Forminator, Gravity Forms, WPForms, and Elementor are planned.
+
+The three manual recipes below still work and are useful for non-form conversions or custom flows.
 
 ### 1. JavaScript API
 
@@ -48,6 +60,8 @@ PBDExperiments.track('opt_in', {
 ```
 
 Renders nothing visible by default. The shortcode reads the visitor's existing assignment cookie, so an off-site checkout round-trip (Keap, Stripe, anything) still attributes the conversion to the right variant when the user lands on the on-site thank-you page.
+
+> **Caveat (important).** This only attributes correctly if the `pbd_exp_vid` cookie survives the round-trip. For some processors (Infusionsoft / Keap opt-in forms in particular) the cookie is frequently lost between the test page and the thank-you page, so the conversion records with **no variant** and is dropped from the per-variant counts (it shows under **Unattributed** on the dashboard). If you see a large Unattributed figure, switch the metric to a **form trigger by selector** on the test page (see "Recommended" above) and remove the thank-you-page shortcode.
 
 For QA, add `debug="true"` to print a visible confirmation of what fired:
 
@@ -109,6 +123,12 @@ In the Clarity dashboard, every session, heatmap, click map, and funnel can then
 - **Active**: assigning visitors and recording events. Can transition to Paused or Concluded.
 - **Paused**: not assigning new visitors; existing assignments still resolve sticky and existing events still record. Can transition back to Active or to Concluded.
 - **Concluded**: terminal. Snapshot frozen, moved to Past Experiments. To re-run, clone the experiment as a new one.
+
+## Reading results: Unattributed conversions
+
+The dashboard counts conversions per variant. A conversion can only be counted against a variant if the visitor had an assignment when it fired. Conversions recorded with no assignment (most often a thank-you-page shortcode firing after the cookie was lost on a cross-domain redirect) are shown separately as **Unattributed (no variant)** under the results table, rather than silently dropped.
+
+A large Unattributed number is the signal that your conversion is being measured in the wrong place. Move it to a **form trigger by selector** on the test page (see "Firing events from a page") so it attributes correctly, and remove the thank-you-page shortcode.
 
 ## Past Experiments archive
 

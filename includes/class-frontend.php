@@ -28,9 +28,10 @@ final class PBD_Exp_Frontend {
 		$is_preview = is_user_logged_in() && current_user_can( 'manage_options' );
 
 		$config = array(
-			'restUrl' => esc_url_raw( rest_url( 'pbd-experiments/v1/events' ) ),
-			'context' => $context,
-			'preview' => $is_preview,
+			'restUrl'  => esc_url_raw( rest_url( 'pbd-experiments/v1/events' ) ),
+			'context'  => $context,
+			'preview'  => $is_preview,
+			'triggers' => $context ? $this->form_triggers( (int) $context['experiment_id'] ) : array(),
 		);
 		?>
 		<script>
@@ -155,6 +156,66 @@ final class PBD_Exp_Frontend {
 				}
 			}
 
+			// Selector matching for delegated events. An invalid selector never
+			// matches (returns false) rather than throwing.
+			function matchesSelector(el, sel) {
+				if (!el || el.nodeType !== 1) return false;
+				var fn = el.matches || el.msMatchesSelector || el.webkitMatchesSelector;
+				if (!fn) return false;
+				try { return fn.call(el, sel); } catch (e) { return false; }
+			}
+			function closestMatch(el, sel) {
+				for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
+					if (matchesSelector(n, sel)) return n;
+				}
+				return null;
+			}
+
+			// Form-platform adapters. Each binds via delegation on the document so
+			// forms injected later (modals, AJAX) are still covered, then calls
+			// fire(formEl) when the targeted form converts.
+			var formAdapters = {
+				// Standard / Infusionsoft / Keap: native submit. Capture phase so it
+				// still runs when the page navigates away on a full-page POST.
+				native: function(trigger, fire) {
+					d.addEventListener('submit', function(e) {
+						var form = closestMatch(e.target, trigger.selector);
+						if (!form) return;
+						if (form.checkValidity && !form.checkValidity()) return;
+						fire(form);
+					}, true);
+				},
+				// Contact Form 7: native CustomEvent dispatched on successful send.
+				cf7: function(trigger, fire) {
+					d.addEventListener('wpcf7mailsent', function(e) {
+						var form = closestMatch(e.target, trigger.selector);
+						if (!form && e.target && e.target.querySelector) {
+							try { form = e.target.querySelector(trigger.selector); } catch (err) {}
+						}
+						if (form) fire(form);
+					});
+				}
+			};
+
+			function bindTriggers() {
+				var triggers = config.triggers || [];
+				var ctx = config.context || {};
+				for (var i = 0; i < triggers.length; i++) {
+					(function(trigger) {
+						if (!trigger || !trigger.selector || !trigger.event) return;
+						var adapter = formAdapters[trigger.form_type] || formAdapters.native;
+						adapter(trigger, function(formEl) {
+							track(trigger.event, {
+								experiment: ctx.experiment_key,
+								once: true,
+								variant: ctx.variant_key,
+								metadata: formEl ? metadataFromForm(formEl) : {}
+							});
+						});
+					})(triggers[i]);
+				}
+			}
+
 			w.PBDExperiments = w.PBDExperiments || {};
 			w.PBDExperiments.config = config;
 			w.PBDExperiments.context = config.context;
@@ -163,8 +224,9 @@ final class PBD_Exp_Frontend {
 			pushDataLayerExposure();
 			pushClarityTags();
 
-			if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', bindForms);
-			else bindForms();
+			function bindAll() { bindForms(); bindTriggers(); }
+			if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', bindAll);
+			else bindAll();
 		})(window, document);
 		</script>
 		<?php
@@ -193,6 +255,30 @@ final class PBD_Exp_Frontend {
 			<?php echo esc_html( $label ); ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Active form-trigger metrics for the current experiment, shaped for the
+	 * front-end auto-binder. Only metrics with trigger_type=form and a non-empty
+	 * selector are emitted; everything else (page/js) fires through its own recipe.
+	 */
+	private function form_triggers( $experiment_id ) {
+		$triggers = array();
+		foreach ( PBD_Exp_Repo::get_metrics( $experiment_id, true ) as $m ) {
+			if ( 'form' !== ( $m['trigger_type'] ?? '' ) ) {
+				continue;
+			}
+			$selector = trim( (string) ( $m['selector'] ?? '' ) );
+			if ( '' === $selector ) {
+				continue;
+			}
+			$triggers[] = array(
+				'event'     => $m['event_name'],
+				'selector'  => $selector,
+				'form_type' => ! empty( $m['form_type'] ) ? $m['form_type'] : 'native',
+			);
+		}
+		return $triggers;
 	}
 
 	private function current_context() {

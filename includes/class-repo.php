@@ -191,6 +191,9 @@ final class PBD_Exp_Repo {
 			'metric_key'    => $data['metric_key'],
 			'name'          => $data['name'],
 			'event_name'    => $data['event_name'],
+			'trigger_type'  => in_array( $data['trigger_type'] ?? 'page', array( 'page', 'form', 'js' ), true ) ? $data['trigger_type'] : 'page',
+			'selector'      => isset( $data['selector'] ) ? $data['selector'] : '',
+			'form_type'     => isset( $data['form_type'] ) ? $data['form_type'] : '',
 			'active'        => ! empty( $data['active'] ) ? 1 : 0,
 			'sort_order'    => isset( $data['sort_order'] ) ? (int) $data['sort_order'] : 0,
 			'updated_at'    => $now,
@@ -282,6 +285,22 @@ final class PBD_Exp_Repo {
 		$sql = 'SELECT COUNT(DISTINCT visitor_id) FROM ' . PBD_Exp_Schema::table( 'events' )
 			. ' WHERE experiment_id = %d AND variant_id = %d AND event_name = %s';
 		$args = array( (int) $experiment_id, (int) $variant_id, $event_name );
+		if ( $since ) {
+			$sql .= ' AND occurred_at >= %s';
+			$args[] = $since;
+		}
+		if ( $until ) {
+			$sql .= ' AND occurred_at <= %s';
+			$args[] = $until;
+		}
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, $args ) );
+	}
+
+	public static function count_unattributed_conversions( $experiment_id, $event_name, $since = null, $until = null ) {
+		global $wpdb;
+		$sql = 'SELECT COUNT(DISTINCT visitor_id) FROM ' . PBD_Exp_Schema::table( 'events' )
+			. ' WHERE experiment_id = %d AND variant_id IS NULL AND event_name = %s';
+		$args = array( (int) $experiment_id, $event_name );
 		if ( $since ) {
 			$sql .= ' AND occurred_at >= %s';
 			$args[] = $since;

@@ -5,7 +5,7 @@ final class PBD_Exp_Schema {
 
 	const TABLE_PREFIX = 'pbd_experiments_';
 	const OPTION_DB_VERSION = 'pbd_experiments_db_version';
-	const DB_VERSION = '1.0.0';
+	const DB_VERSION = '1.2.0';
 
 	public static function table( $name ) {
 		global $wpdb;
@@ -115,6 +115,9 @@ final class PBD_Exp_Schema {
 				metric_key varchar(100) NOT NULL,
 				name varchar(191) NOT NULL,
 				event_name varchar(100) NOT NULL,
+				trigger_type varchar(20) NOT NULL DEFAULT 'page',
+				selector varchar(255) NOT NULL DEFAULT '',
+				form_type varchar(40) NOT NULL DEFAULT '',
 				active tinyint(1) NOT NULL DEFAULT 1,
 				sort_order int(11) NOT NULL DEFAULT 0,
 				created_at datetime NOT NULL,

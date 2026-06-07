@@ -261,7 +261,32 @@ final class PBD_Exp_Admin_Dashboard {
 					</tr>
 				<?php endforeach; ?>
 			</tbody>
+			<?php
+			$unattributed = isset( $report['unattributed'] ) ? $report['unattributed'] : array();
+			$has_unattributed = false;
+			foreach ( $unattributed as $count ) {
+				if ( (int) $count > 0 ) { $has_unattributed = true; break; }
+			}
+			if ( $has_unattributed ) :
+			?>
+			<tfoot>
+				<tr class="pbd-exp-results__unattributed">
+					<td colspan="3"><strong>Unattributed</strong> <span title="Conversions recorded without a variant. Usually a thank-you-page shortcode firing for visitors whose cookie did not survive a cross-domain redirect. Switch this metric to a form trigger on the test page to attribute them.">(no variant)</span></td>
+					<?php foreach ( $report['active_metrics'] as $mi => $metric ) : ?>
+						<td><?php echo esc_html( number_format_i18n( isset( $unattributed[ $mi ] ) ? (int) $unattributed[ $mi ] : 0 ) ); ?></td>
+						<td>&mdash;</td>
+						<td>&mdash;</td>
+					<?php endforeach; ?>
+				</tr>
+			</tfoot>
+			<?php endif; ?>
 		</table>
+		<?php if ( $has_unattributed ) : ?>
+			<p class="pbd-exp-help" style="margin-top:8px;">
+				<strong>Some conversions could not be attributed to a variant.</strong>
+				They were recorded but with no variant assignment, so they are not in the per-variant counts above. This usually means the conversion is measured on a separate page (e.g. a thank-you-page shortcode) that visitors reach after a cross-domain redirect, where the visitor cookie is lost. Measure the conversion as a <em>form</em> trigger on the test page itself so it is attributed.
+			</p>
+		<?php endif; ?>
 		<?php
 	}
 
@@ -380,10 +405,25 @@ final class PBD_Exp_Admin_Dashboard {
 			);
 		}
 
+		// Conversions recorded with no variant assignment (e.g. a thank-you-page
+		// shortcode fired by a visitor whose cookie did not survive a cross-domain
+		// hop). These are invisible to the per-variant counts above, so surface
+		// them explicitly: a broken attribution should read as a number, not zero.
+		$unattributed = array();
+		foreach ( $active_metrics as $mi => $metric ) {
+			$unattributed[ $mi ] = PBD_Exp_Repo::count_unattributed_conversions(
+				(int) $experiment['id'],
+				$metric['event_name'],
+				$window['from'],
+				$window['to']
+			);
+		}
+
 		return array(
 			'active_metrics' => $active_metrics,
 			'rows'           => $rows,
 			'total_visitors' => $total_visitors,
+			'unattributed'   => $unattributed,
 			'srm_warning'    => self::srm_warning( $variants, $per_variant_visitors, $total_weight, $total_visitors ),
 		);
 	}

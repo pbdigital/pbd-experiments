@@ -1,4 +1,6 @@
 > Status: all 16 items implemented in the Add/Edit Experiment screen (see `includes/admin/class-edit.php`, `assets/admin.css`, `assets/admin.js`).
+>
+> 1.2.0: the metric "Submitting a form" trigger is now real and selector-driven. You enter the form's CSS selector and platform (Standard / Infusionsoft / Keap, or Contact Form 7); the conversion is bound and fired client-side on the test page, so it targets one form among many and survives cross-domain (Infusionsoft / Keap) redirects. The dashboard now shows an **Unattributed (no variant)** figure so conversions recorded without an assignment are visible instead of silently dropped. Planned next: Forminator / Gravity / WPForms / Elementor adapters and a click-an-element trigger.
 
 # UI/UX recommendations — `Add Experiment` screen
 

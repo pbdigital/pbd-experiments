@@ -125,6 +125,14 @@
 				$(this).attr('hidden', 'hidden');
 			}
 		});
+
+		// Selector + form-platform fields only apply to form triggers.
+		var $formConfig = $row.find('.pbd-exp-metric-form-config');
+		if (trigger === 'form') {
+			$formConfig.removeAttr('hidden');
+		} else {
+			$formConfig.attr('hidden', 'hidden');
+		}
 	}
 
 	function gatherValidationErrors() {
@@ -332,11 +340,18 @@
 				'<td class="pbd-exp-keys-col"><input type="hidden" name="metrics[' + i + '][id]" value="0">' +
 					'<input type="text" name="metrics[' + i + '][metric_key]" placeholder="opt_in" class="pbd-exp-metric-key"></td>' +
 				'<td><input type="text" name="metrics[' + i + '][name]" placeholder="Display Name" class="pbd-exp-metric-name"></td>' +
-				'<td><select class="pbd-exp-metric-trigger">' +
+				'<td><select name="metrics[' + i + '][trigger_type]" class="pbd-exp-metric-trigger">' +
 					'<option value="page">Visiting a specific page</option>' +
 					'<option value="form">Submitting a form</option>' +
 					'<option value="js">Custom JavaScript</option>' +
-				'</select></td>' +
+				'</select>' +
+				'<span class="pbd-exp-metric-form-config" hidden>' +
+					'<input type="text" name="metrics[' + i + '][selector]" placeholder="#inf_form, .infusion-form, form.optin" class="pbd-exp-metric-selector">' +
+					'<select name="metrics[' + i + '][form_type]" class="pbd-exp-metric-formtype">' +
+						'<option value="native">Standard form (incl. Infusionsoft / Keap)</option>' +
+						'<option value="cf7">Contact Form 7</option>' +
+					'</select>' +
+				'</span></td>' +
 				'<td class="pbd-exp-keys-col"><input type="text" name="metrics[' + i + '][event_name]" placeholder="event_name" class="pbd-exp-metric-event"></td>' +
 				'<td class="col-active"><input type="checkbox" name="metrics[' + i + '][active]" value="1" checked></td>' +
 				'<td class="col-remove"><button type="button" class="pbd-exp-remove-row" aria-label="Remove metric"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button></td>' +
@@ -348,8 +363,9 @@
 						'<div class="pbd-exp-snippet"><code class="pbd-exp-snippet-code">[pbd_experiment_event event=&quot;<span class="pbd-exp-snippet-event">' + event + '</span>&quot; experiment=&quot;<span class="pbd-exp-snippet-exp">' + expKey + '</span>&quot; once=&quot;1&quot;]</code><button type="button" class="copy-btn">Copy</button></div>' +
 					'</div>' +
 					'<div class="pbd-exp-metric-snippet" data-snippet-for="form" hidden>' +
-						'<p class="pbd-exp-metric-snippet__lede"><strong>Add these attributes to your form\'s HTML</strong> so it fires when someone submits it successfully.</p>' +
-						'<div class="pbd-exp-snippet"><code class="pbd-exp-snippet-code">&lt;form data-pbd-exp=&quot;<span class="pbd-exp-snippet-exp">' + expKey + '</span>&quot; data-pbd-event=&quot;<span class="pbd-exp-snippet-event">' + event + '</span>&quot;&gt; … &lt;/form&gt;</code><button type="button" class="copy-btn">Copy</button></div>' +
+						'<p class="pbd-exp-metric-snippet__lede"><strong>Enter the CSS selector for the form above</strong> (e.g. <code>#inf_form</code>, <code>.infusion-form</code>, <code>form.optin</code>). On a page with several forms, this is how you target the right one. The conversion is recorded the moment that form is submitted, on the test page itself, so it works even when the form posts off-site (Infusionsoft / Keap) and redirects back.</p>' +
+						'<p class="pbd-exp-metric-snippet__how">Right-click the form in your browser → Inspect → read its <code>id</code> or <code>class</code>. Prefer an <code>#id</code>: it is the most specific.</p>' +
+						'<p class="pbd-exp-metric-snippet__how"><em>Advanced (optional):</em> instead of a selector you can hand-add attributes to the form\'s HTML — <code>&lt;form data-pbd-exp=&quot;<span class="pbd-exp-snippet-exp">' + expKey + '</span>&quot; data-pbd-event=&quot;<span class="pbd-exp-snippet-event">' + event + '</span>&quot;&gt;</code></p>' +
 					'</div>' +
 					'<div class="pbd-exp-metric-snippet" data-snippet-for="js" hidden>' +
 						'<p class="pbd-exp-metric-snippet__lede"><strong>Call this from JavaScript</strong> when the conversion happens (button click, ajax response, custom flow).</p>' +
