@@ -14,6 +14,8 @@ Agency-grade WordPress split-testing. Internal PB Digital tool. Drop-in plugin: 
 
 1. Upload the `pbd-experiments` folder to `wp-content/plugins/` (zip upload through wp-admin works too).
 2. Activate the plugin. A new **Experiments** menu appears in wp-admin.
+
+From here on the plugin keeps itself current: it checks the public [pbdigital/pbd-experiments](https://github.com/pbdigital/pbd-experiments) GitHub Releases and surfaces new versions as a normal "Update available" notice on the **Plugins** screen, updatable in one click like any other plugin. The manual upload above is only needed for the very first install. See `DEPLOY.md` for the release process.
 3. **Recommended first test: an AA test.** Create one experiment with two variants pointing at the same template (or both with no template override). After meaningful traffic, both arms should show roughly equal conversion rates. If they don't, your assignment or tracking is broken before you ship a real test.
 4. Once AA passes, set up your first real test:
    - **Name**: human-readable, e.g. "Free Classes Redesign"

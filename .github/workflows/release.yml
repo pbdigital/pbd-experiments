@@ -1,0 +1,41 @@
+name: Build release zip
+
+# Lives inside the plugin folder so `git subtree push` carries it to the root
+# of the dedicated pbdigital/pbd-experiments repo, where GitHub activates it.
+# GitHub only runs workflows found at a repo's root .github/workflows, so this
+# file stays dormant in the dev sandbox.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage plugin into a correctly-named folder
+        run: |
+          mkdir -p build/pbd-experiments
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.gitignore' \
+            --exclude='build' \
+            --exclude='DEPLOY.md' \
+            --exclude='FRICTION-AUDIT.md' \
+            --exclude='IMPROVEMENTS.md' \
+            ./ build/pbd-experiments/
+
+      - name: Zip
+        run: cd build && zip -r ../pbd-experiments.zip pbd-experiments
+
+      - name: Create release with the zip attached
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pbd-experiments.zip

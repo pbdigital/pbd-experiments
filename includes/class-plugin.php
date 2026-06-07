@@ -23,6 +23,9 @@ final class PBD_Exp_Plugin {
 	/** @var PBD_Exp_Admin */
 	private $admin;
 
+	/** @var PBD_Exp_Updater */
+	private $updater;
+
 	public static function instance() {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -36,12 +39,14 @@ final class PBD_Exp_Plugin {
 		$this->rest       = new PBD_Exp_Rest();
 		$this->shortcode  = new PBD_Exp_Shortcode();
 		$this->admin      = new PBD_Exp_Admin();
+		$this->updater    = new PBD_Exp_Updater();
 
 		$this->dispatcher->hook();
 		$this->frontend->hook();
 		$this->rest->hook();
 		$this->shortcode->hook();
 		$this->admin->hook();
+		$this->updater->hook();
 
 		add_action( 'admin_init', array( 'PBD_Exp_Schema', 'maybe_upgrade' ) );
 	}

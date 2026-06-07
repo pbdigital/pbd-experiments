@@ -1,6 +1,15 @@
 # Deployment & cutover handoff
 
-This is the operator's guide for getting `pbd-experiments` v1.0.0 from this dev environment to a real client site. Two real-world deploys are queued: Carla's site (PBD-7 "Done when") and the Bookkeepers cutover (PBD-11).
+This is the operator's guide for getting `pbd-experiments` from this dev environment to a real client site. Two real-world deploys are queued: Carla's site (PBD-7 "Done when") and the Bookkeepers cutover (PBD-11).
+
+## Updates after first install (self-updating)
+
+From v1.1.0 the plugin self-updates from GitHub Releases. It bundles the Plugin Update Checker library (`lib/plugin-update-checker/`), wired in `includes/class-updater.php`, pointed at the public `pbdigital/pbd-experiments` repo. On each client site WordPress checks for a newer Release on its normal schedule (~12h, cached) and shows a standard "Update available" notice on the **Plugins** screen. The site owner clicks **Update** and WordPress pulls the release-asset zip and swaps the plugin in place, exactly like a wp.org plugin. Any DB schema change rides along: `PBD_Exp_Schema::maybe_upgrade()` runs on the next admin load.
+
+Two things to know:
+
+- The manual zip upload below is the **one-time bootstrap**. It is only needed for the first install (or to put the first self-updating version, v1.1.0+, onto a site that predates it). Every release after that is one-click on the client site.
+- The distributable lives in a **dedicated public repo**, `pbdigital/pbd-experiments`, separate from this dev sandbox. Releasing is a two-step "publish the plugin folder, then tag" flow (see [Releasing a new version](#releasing-a-new-version)).
 
 ## Locked decisions (recorded here for the PR description)
 
@@ -11,6 +20,28 @@ This is the operator's guide for getting `pbd-experiments` v1.0.0 from this dev 
 | Redirect cookie ordering | Visitor cookie is `setcookie()`'d BEFORE `wp_safe_redirect()`. Both headers ship in the same response. | Verified in local Docker: redirect response carries `Set-Cookie:` and `Location:` together. The 302 lands on the variant URL with the visitor already cookied. |
 | Direct landing on variant URL | Treat as unassigned. No assignment created, no `experiment_viewed` event, no stats pollution. | Per locked decision. The plugin's `target_path` match means only the entry URL triggers assignment. Direct visits to redirect destinations are invisible to the system. |
 | Status workflow | `draft` → `active`/`paused`; `active` → `paused`/`concluded`; `paused` → `active`/`concluded`; `concluded` is terminal. To re-run a concluded test, clone it as a new experiment. | Cleanest model. Frozen snapshot stays trustworthy. UI enforces transitions. |
+
+## Releasing a new version
+
+Releases are built automatically. A GitHub Action in the dedicated repo (`.github/workflows/release.yml`, which lives inside this plugin folder and is carried to the repo root by the subtree push below) fires on any `v*` tag, builds a clean `pbd-experiments/`-rooted zip (dev docs excluded, `lib/` included), and attaches it to the GitHub Release. The bundled update checker downloads exactly that attached zip.
+
+Per-release checklist:
+
+1. Bump the version in `pbd-experiments.php`: both the header `Version:` line and the `PBD_EXP_VERSION` constant, to the **same** value. WordPress and the update checker compare the header `Version:` only, so the two must never disagree. Bump `DB_VERSION` in `class-schema.php` only if the schema changed.
+2. Commit in this sandbox, then publish the plugin folder to the dedicated repo:
+   ```
+   git subtree push --prefix=wp-content/plugins/pbd-experiments \
+     git@github.com:pbdigital/pbd-experiments.git main
+   ```
+3. In the dedicated repo, tag the release and push the tag (the version must match the header, prefixed with `v`):
+   ```
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+   The Action builds the zip and publishes the Release.
+4. Client sites pick it up within ~12h, or immediately via **Dashboard → Updates → Check again**.
+
+First-time setup (once): create the public `pbdigital/pbd-experiments` repo, run the subtree push above to populate it, and confirm the Action ran on the first tag. After that, only steps 1-4 apply.
 
 ## Pre-deploy sanity check (any target site)
 
