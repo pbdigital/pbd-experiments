@@ -80,6 +80,23 @@ final class PBD_Exp_Repo {
 		$wpdb->delete( PBD_Exp_Schema::table( 'snapshots' ), array( 'experiment_id' => (int) $id ), array( '%d' ) );
 	}
 
+	/**
+	 * Reset an experiment's collected data back to zero without touching its
+	 * configuration. Clears recorded events and visitor assignments only; the
+	 * experiment, its variants, and its metrics are left intact so it can keep
+	 * collecting cleanly. Snapshots are deliberately left alone: they exist only
+	 * for concluded experiments, which are locked against reset upstream.
+	 *
+	 * @return array Rows removed, keyed 'events' and 'assignments', for feedback.
+	 */
+	public static function reset_stats( $experiment_id ) {
+		global $wpdb;
+		$experiment_id = (int) $experiment_id;
+		$events = (int) $wpdb->delete( PBD_Exp_Schema::table( 'events' ), array( 'experiment_id' => $experiment_id ), array( '%d' ) );
+		$assignments = (int) $wpdb->delete( PBD_Exp_Schema::table( 'assignments' ), array( 'experiment_id' => $experiment_id ), array( '%d' ) );
+		return array( 'events' => $events, 'assignments' => $assignments );
+	}
+
 	public static function get_variants( $experiment_id ) {
 		global $wpdb;
 		$rows = $wpdb->get_results(

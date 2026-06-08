@@ -88,6 +88,8 @@ final class PBD_Exp_Admin_Edit {
 				'resumed'            => array( 'success', 'Experiment resumed.' ),
 				'invalid_transition' => array( 'error', 'That status transition is not allowed.' ),
 				'cloned'             => array( 'success', 'Experiment cloned. Edit and start when ready.' ),
+				'stats_reset'        => array( 'success', 'Stats reset. Visitors and conversions for this experiment are back to zero. Your variants, metrics, and settings were kept.' ),
+				'reset_locked'       => array( 'error', 'Concluded experiments are locked, so their stats cannot be reset. Clone it to run a fresh test.' ),
 			);
 			if ( isset( $messages[ $flash ] ) ) {
 				printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $messages[ $flash ][0] ), esc_html( $messages[ $flash ][1] ) );
@@ -381,6 +383,15 @@ final class PBD_Exp_Admin_Edit {
 			<?php endif; ?>
 
 			<span class="spacer"></span>
+
+			<?php if ( 'active' === $status || 'paused' === $status ) : ?>
+				<form method="post" style="margin:0;" onsubmit="return confirm('Reset all stats for this experiment? Every recorded visitor and conversion is cleared and the counts go back to zero. The experiment setup (variants, metrics, settings) is kept. This cannot be undone.');">
+					<?php wp_nonce_field( PBD_Exp_Admin::NONCE_ACTION ); ?>
+					<input type="hidden" name="pbd_exp_action" value="reset_stats">
+					<input type="hidden" name="experiment_id" value="<?php echo esc_attr( $id ); ?>">
+					<button type="submit" class="button">Reset stats</button>
+				</form>
+			<?php endif; ?>
 
 			<?php if ( 'draft' === $status ) : ?>
 				<form method="post" style="margin:0;" onsubmit="return confirm('Permanently delete this draft experiment? This cannot be undone.');">
@@ -850,6 +861,32 @@ final class PBD_Exp_Admin_Edit {
 		$target = add_query_arg( 'message', 'deleted', $target );
 
 		wp_safe_redirect( $target );
+		exit;
+	}
+
+	public static function handle_reset_stats() {
+		$id = isset( $_POST['experiment_id'] ) ? absint( $_POST['experiment_id'] ) : 0;
+		if ( ! $id ) {
+			return;
+		}
+		$experiment = PBD_Exp_Repo::get_experiment( $id );
+		if ( ! $experiment ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG ) );
+			exit;
+		}
+
+		$edit_url = admin_url( 'admin.php?page=' . PBD_Exp_Admin::MENU_SLUG . '&action=edit&id=' . $id );
+
+		// Concluded experiments are locked read-only; their frozen snapshot is the
+		// historical record, so refuse to wipe the data behind it.
+		if ( 'concluded' === $experiment['status'] ) {
+			wp_safe_redirect( add_query_arg( 'message', 'reset_locked', $edit_url ) );
+			exit;
+		}
+
+		PBD_Exp_Repo::reset_stats( $id );
+
+		wp_safe_redirect( add_query_arg( 'message', 'stats_reset', $edit_url ) );
 		exit;
 	}
 

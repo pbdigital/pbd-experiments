@@ -73,6 +73,9 @@ final class PBD_Exp_Admin {
 			case 'delete_experiment':
 				PBD_Exp_Admin_Edit::handle_delete();
 				break;
+			case 'reset_stats':
+				PBD_Exp_Admin_Edit::handle_reset_stats();
+				break;
 			case 'transition_status':
 				PBD_Exp_Admin_Edit::handle_transition();
 				break;
