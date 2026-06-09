@@ -5,7 +5,7 @@ final class PBD_Exp_Schema {
 
 	const TABLE_PREFIX = 'pbd_experiments_';
 	const OPTION_DB_VERSION = 'pbd_experiments_db_version';
-	const DB_VERSION = '1.2.0';
+	const DB_VERSION = '1.3.0';
 
 	public static function table( $name ) {
 		global $wpdb;
@@ -83,6 +83,12 @@ final class PBD_Exp_Schema {
 				experiment_id bigint(20) unsigned NOT NULL,
 				variant_id bigint(20) unsigned NOT NULL,
 				assigned_at datetime NOT NULL,
+				channel varchar(20) NOT NULL DEFAULT '',
+				source varchar(100) NOT NULL DEFAULT '',
+				medium varchar(60) NOT NULL DEFAULT '',
+				campaign varchar(191) NOT NULL DEFAULT '',
+				referrer_host varchar(191) NOT NULL DEFAULT '',
+				device varchar(12) NOT NULL DEFAULT '',
 				PRIMARY KEY  (id),
 				UNIQUE KEY visitor_experiment (visitor_id,experiment_id),
 				KEY experiment_variant (experiment_id,variant_id),

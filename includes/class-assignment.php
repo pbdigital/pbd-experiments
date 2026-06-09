@@ -35,7 +35,11 @@ final class PBD_Exp_Assignment {
 			return null;
 		}
 
-		PBD_Exp_Repo::insert_assignment( $visitor_id, $experiment_id, (int) $variant['id'] );
+		// First touch: capture the traffic source now, while $_GET (utm/click ids),
+		// the referrer, and the UA are all still on this landing request and before
+		// a redirect variant 302s. Written once; return visits reuse the row above.
+		$source = PBD_Exp_Traffic_Source::detect();
+		PBD_Exp_Repo::insert_assignment( $visitor_id, $experiment_id, (int) $variant['id'], $source );
 		PBD_Exp_Visitor::set_cookie( $visitor_id, (int) $experiment['cookie_days'] );
 
 		return PBD_Exp_Repo::get_assignment( $visitor_id, $experiment_id );

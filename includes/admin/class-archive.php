@@ -181,6 +181,10 @@ final class PBD_Exp_Admin_Archive {
 						<?php endforeach; ?>
 					</tbody>
 				</table>
+
+			<?php if ( ! empty( $snapshot['segments'] ) ) : ?>
+				<?php self::render_frozen_segments( $snapshot, $winner_id ); ?>
+			<?php endif; ?>
 			<?php endif; ?>
 
 			<?php if ( ! empty( $experiment['notes'] ) ) : ?>
@@ -189,5 +193,80 @@ final class PBD_Exp_Admin_Archive {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Render the frozen Channel and Device breakdowns from a concluded snapshot.
+	 * Read-only (no live selector). Guarded by the caller so snapshots predating
+	 * the feature, which have no 'segments' key, render exactly as before.
+	 */
+	private static function render_frozen_segments( $snapshot, $winner_id ) {
+		$primary_name = isset( $snapshot['segment_meta']['primary_name'] ) ? $snapshot['segment_meta']['primary_name'] : 'Conversions';
+
+		foreach ( array( 'channel', 'device' ) as $col ) {
+			if ( empty( $snapshot['segments'][ $col ]['values'] ) ) {
+				continue;
+			}
+			$group = $snapshot['segments'][ $col ];
+			?>
+			<div class="pbd-exp-segments pbd-exp-segments--frozen">
+				<h3 class="pbd-exp-segment-heading">By <?php echo esc_html( strtolower( $group['label'] ) ); ?></h3>
+				<?php foreach ( $group['values'] as $slice ) : ?>
+					<div class="pbd-exp-segment-slice<?php echo ! empty( $slice['low_sample'] ) ? ' pbd-exp-segment--thin' : ''; ?>">
+						<div class="pbd-exp-segment-slice__head">
+							<strong><?php echo esc_html( $slice['segment'] ); ?></strong>
+							<span class="pbd-exp-segment-count"><?php echo esc_html( number_format_i18n( (int) $slice['visitors'] ) ); ?> visitors</span>
+							<?php if ( ! empty( $slice['low_sample'] ) ) : ?>
+								<span class="pbd-exp-segment-badge">low sample</span>
+							<?php endif; ?>
+						</div>
+						<table class="widefat striped pbd-exp-results pbd-exp-segment-table">
+							<thead>
+								<tr>
+									<th class="col-variant">Variant</th>
+									<th>Visitors</th>
+									<th><?php echo esc_html( $primary_name ); ?></th>
+									<th>Rate</th>
+									<th>Lift vs control</th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $slice['rows'] as $i => $row ) :
+									$is_control  = 0 === $i;
+									$is_winner   = $winner_id && $winner_id === (int) $row['variant_id'];
+									$row_classes = array();
+									if ( $is_winner ) { $row_classes[] = 'row-winner'; }
+									if ( $is_control ) { $row_classes[] = 'row-control'; }
+								?>
+									<tr<?php if ( $row_classes ) echo ' class="' . esc_attr( implode( ' ', $row_classes ) ) . '"'; ?>>
+										<td class="col-variant">
+											<strong><?php echo esc_html( $row['label'] ); ?></strong>
+											<code><?php echo esc_html( $row['variant_key'] ); ?></code>
+											<?php if ( $is_control ) : ?><em>baseline</em><?php endif; ?>
+										</td>
+										<td><?php echo esc_html( number_format_i18n( (int) $row['visitors'] ) ); ?></td>
+										<td><?php echo esc_html( number_format_i18n( (int) $row['conversions'] ) ); ?></td>
+										<td><?php echo esc_html( number_format_i18n( $row['rate'] * 100, 2 ) ); ?>%</td>
+										<td>
+											<?php
+											if ( null === $row['lift'] ) {
+												echo '<span class="pbd-exp-lift--flat">&mdash;</span>';
+											} else {
+												$lift = (float) $row['lift'];
+												$cls  = $lift > 0.5 ? 'pbd-exp-lift--up' : ( $lift < -0.5 ? 'pbd-exp-lift--down' : 'pbd-exp-lift--flat' );
+												$sign = $lift > 0 ? '+' : '';
+												printf( '<span class="%s">%s%s%%</span>', esc_attr( $cls ), esc_html( $sign ), esc_html( number_format_i18n( $lift, 2 ) ) );
+											}
+											?>
+										</td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endforeach; ?>
+			</div>
+			<?php
+		}
 	}
 }

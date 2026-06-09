@@ -264,7 +264,12 @@ final class PBD_Exp_Repo {
 		);
 	}
 
-	public static function insert_assignment( $visitor_id, $experiment_id, $variant_id ) {
+	/**
+	 * @param array $source Optional first-touch traffic source from
+	 *                      PBD_Exp_Traffic_Source::detect(). Absent keys store ''.
+	 *                      Only set on genuinely-new (first-touch) assignments.
+	 */
+	public static function insert_assignment( $visitor_id, $experiment_id, $variant_id, $source = array() ) {
 		global $wpdb;
 		$wpdb->insert(
 			PBD_Exp_Schema::table( 'assignments' ),
@@ -273,9 +278,78 @@ final class PBD_Exp_Repo {
 				'experiment_id' => (int) $experiment_id,
 				'variant_id'    => (int) $variant_id,
 				'assigned_at'   => current_time( 'mysql' ),
+				'channel'       => isset( $source['channel'] ) ? $source['channel'] : '',
+				'source'        => isset( $source['source'] ) ? $source['source'] : '',
+				'medium'        => isset( $source['medium'] ) ? $source['medium'] : '',
+				'campaign'      => isset( $source['campaign'] ) ? $source['campaign'] : '',
+				'referrer_host' => isset( $source['referrer_host'] ) ? $source['referrer_host'] : '',
+				'device'        => isset( $source['device'] ) ? $source['device'] : '',
 			),
-			array( '%s', '%d', '%d', '%s' )
+			array( '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
+	}
+
+	/**
+	 * Allowlist guard for a segment column name before it is interpolated into a
+	 * GROUP BY. Segment columns can never arrive raw from user input into SQL.
+	 */
+	private static function safe_segment_col( $col ) {
+		return in_array( $col, PBD_Exp_Traffic_Source::SEGMENT_COLS, true ) ? $col : 'channel';
+	}
+
+	/**
+	 * Visitors per (variant, segment value), grouped on a first-touch source
+	 * column of the assignments table.
+	 *
+	 * @return array Rows of { variant_id, segment, n }.
+	 */
+	public static function count_assignments_by_segment( $experiment_id, $segment_col, $since = null, $until = null ) {
+		global $wpdb;
+		$col  = self::safe_segment_col( $segment_col ); // hardcoded literal, safe to interpolate
+		$sql  = 'SELECT variant_id, ' . $col . ' AS segment, COUNT(*) AS n FROM '
+			. PBD_Exp_Schema::table( 'assignments' ) . ' WHERE experiment_id = %d';
+		$args = array( (int) $experiment_id );
+		if ( $since ) {
+			$sql .= ' AND assigned_at >= %s';
+			$args[] = $since;
+		}
+		if ( $until ) {
+			$sql .= ' AND assigned_at <= %s';
+			$args[] = $until;
+		}
+		$sql .= ' GROUP BY variant_id, ' . $col;
+		return $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A );
+	}
+
+	/**
+	 * Converting visitors per (variant, segment value). Joins events back to the
+	 * assignment so a conversion inherits the visitor's first-touch source, even
+	 * when the conversion fired off-target (e.g. a thank-you page). Keyed on both
+	 * visitor_id and experiment_id so a visitor in several experiments is counted
+	 * only via the matching assignment.
+	 *
+	 * @return array Rows of { variant_id, segment, n }.
+	 */
+	public static function count_conversions_by_segment( $experiment_id, $event_name, $segment_col, $since = null, $until = null ) {
+		global $wpdb;
+		$col  = self::safe_segment_col( $segment_col ); // hardcoded literal, safe to interpolate
+		$a    = PBD_Exp_Schema::table( 'assignments' );
+		$e    = PBD_Exp_Schema::table( 'events' );
+		$sql  = 'SELECT a.variant_id AS variant_id, a.' . $col . ' AS segment, COUNT(DISTINCT e.visitor_id) AS n
+			FROM ' . $e . ' e
+			INNER JOIN ' . $a . ' a ON a.visitor_id = e.visitor_id AND a.experiment_id = e.experiment_id
+			WHERE e.experiment_id = %d AND e.event_name = %s';
+		$args = array( (int) $experiment_id, $event_name );
+		if ( $since ) {
+			$sql .= ' AND e.occurred_at >= %s';
+			$args[] = $since;
+		}
+		if ( $until ) {
+			$sql .= ' AND e.occurred_at <= %s';
+			$args[] = $until;
+		}
+		$sql .= ' GROUP BY a.variant_id, a.' . $col;
+		return $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A );
 	}
 
 	public static function count_assignments( $experiment_id, $variant_id = null, $since = null, $until = null ) {

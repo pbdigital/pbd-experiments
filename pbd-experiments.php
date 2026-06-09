@@ -3,7 +3,7 @@
  * Plugin Name: PBD Experiments
  * Plugin URI: https://github.com/pbdigital/pbd-experiments
  * Description: Agency-grade WordPress split-testing. Assigns variants, dispatches templates or redirects, records events, reports results.
- * Version: 1.2.1
+ * Version: 1.3.0
  * Author: PB Digital
  * Author URI: https://pbdigital.com.au
  * Requires at least: 5.8
@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PBD_EXP_VERSION', '1.2.1' );
+define( 'PBD_EXP_VERSION', '1.3.0' );
 define( 'PBD_EXP_FILE', __FILE__ );
 define( 'PBD_EXP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'PBD_EXP_URL', plugin_dir_url( __FILE__ ) );
@@ -22,6 +22,7 @@ define( 'PBD_EXP_BASENAME', plugin_basename( __FILE__ ) );
 
 require_once PBD_EXP_PATH . 'includes/class-schema.php';
 require_once PBD_EXP_PATH . 'includes/class-repo.php';
+require_once PBD_EXP_PATH . 'includes/class-traffic-source.php';
 require_once PBD_EXP_PATH . 'includes/class-visitor.php';
 require_once PBD_EXP_PATH . 'includes/class-exclusions.php';
 require_once PBD_EXP_PATH . 'includes/class-assignment.php';

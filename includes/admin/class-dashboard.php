@@ -10,6 +10,9 @@ final class PBD_Exp_Admin_Dashboard {
 	const SRM_MIN_VISITORS = 500;          // per-arm minimum before flagging
 	const SRM_DEVIATION_THRESHOLD = 0.05;  // 5 percentage points off configured weight
 
+	const SEGMENT_MIN_VISITORS = 100;      // per-arm minimum before a slice is trusted; below this it is dimmed
+	const SEGMENT_MAX_ROWS = 12;           // cap unbounded source/medium slices in the live view
+
 	public static function render( $id ) {
 		$experiment = PBD_Exp_Repo::get_experiment( $id );
 		if ( ! $experiment ) {
@@ -28,7 +31,8 @@ final class PBD_Exp_Admin_Dashboard {
 
 		$variants = PBD_Exp_Repo::get_variants( $id );
 		$metrics  = PBD_Exp_Repo::get_metrics( $id );
-		$report   = self::build_report( $experiment, $variants, $metrics, self::date_window( $experiment ) );
+		$segment  = self::selected_segment();
+		$report   = self::build_report( $experiment, $variants, $metrics, self::date_window( $experiment ), array( $segment ) );
 
 		$window_from = isset( $_GET['from'] ) ? sanitize_text_field( wp_unslash( $_GET['from'] ) ) : '';
 		$window_to   = isset( $_GET['to'] ) ? sanitize_text_field( wp_unslash( $_GET['to'] ) ) : '';
@@ -109,6 +113,10 @@ final class PBD_Exp_Admin_Dashboard {
 					<strong>No active metrics yet.</strong> Visitor assignments are being recorded, but until you add a metric on the Edit screen there's nothing to measure conversion against.
 					<a href="<?php echo esc_url( $edit_url . '#pbd-exp-metrics' ); ?>">Add a metric</a>.
 				</div>
+			<?php endif; ?>
+
+			<?php if ( $report['total_visitors'] > 0 && ! empty( $report['active_metrics'] ) ) : ?>
+				<?php self::render_segment_breakdown( $experiment, $report, $segment ); ?>
 			<?php endif; ?>
 
 			<?php self::render_dashboard_actions( $experiment ); ?>
@@ -290,6 +298,109 @@ final class PBD_Exp_Admin_Dashboard {
 		<?php
 	}
 
+	/**
+	 * Traffic-source breakdown: a tab selector plus one compact control-vs-variant
+	 * sub-table per slice. Diagnostic only; thin slices are dimmed and badged, and
+	 * a standing caution warns against declaring winners on small slices.
+	 */
+	private static function render_segment_breakdown( $experiment, $report, $segment ) {
+		$data = isset( $report['segments'][ $segment ] ) ? $report['segments'][ $segment ] : null;
+		$primary_name = isset( $report['segment_meta']['primary_name'] ) ? $report['segment_meta']['primary_name'] : 'Conversions';
+
+		$id   = (int) $experiment['id'];
+		$from = isset( $_GET['from'] ) ? sanitize_text_field( wp_unslash( $_GET['from'] ) ) : '';
+		$to   = isset( $_GET['to'] ) ? sanitize_text_field( wp_unslash( $_GET['to'] ) ) : '';
+
+		$base_args = array( 'page' => PBD_Exp_Admin::MENU_SLUG, 'action' => 'dashboard', 'id' => $id );
+		if ( '' !== $from ) { $base_args['from'] = $from; }
+		if ( '' !== $to ) { $base_args['to'] = $to; }
+
+		$tabs = array(
+			'channel' => 'Channel',
+			'source'  => 'Source',
+			'medium'  => 'Medium',
+			'device'  => 'Device',
+		);
+		?>
+		<div class="pbd-exp-card pbd-exp-segments" style="margin-top:24px;">
+			<div class="pbd-exp-card__header">
+				<h2>Break down by traffic source</h2>
+			</div>
+			<div class="pbd-exp-card__body">
+				<div class="pbd-exp-segment-selector">
+					<?php foreach ( $tabs as $key => $label ) :
+						$url = admin_url( 'admin.php?' . http_build_query( array_merge( $base_args, array( 'segment' => $key ) ) ) );
+						?>
+						<a href="<?php echo esc_url( $url ); ?>" class="<?php echo $segment === $key ? 'is-active' : ''; ?>"><?php echo esc_html( $label ); ?></a>
+					<?php endforeach; ?>
+				</div>
+
+				<p class="pbd-exp-segment-note">
+					Segments are diagnostic. Don't declare a winner on a thin slice. Small samples and many comparisons make these rates noisy. Treat a within-segment difference as a lead to investigate, not a result.
+				</p>
+
+				<?php if ( ! $data || empty( $data['values'] ) ) : ?>
+					<p class="pbd-exp-help">No <?php echo esc_html( strtolower( self::segment_label( $segment ) ) ); ?> data recorded in this window yet.</p>
+				<?php else : ?>
+					<?php foreach ( $data['values'] as $slice ) : ?>
+						<div class="pbd-exp-segment-slice<?php echo $slice['low_sample'] ? ' pbd-exp-segment--thin' : ''; ?>">
+							<div class="pbd-exp-segment-slice__head">
+								<strong><?php echo esc_html( $slice['segment'] ); ?></strong>
+								<span class="pbd-exp-segment-count"><?php echo esc_html( number_format_i18n( $slice['visitors'] ) ); ?> visitors</span>
+								<?php if ( $slice['low_sample'] ) : ?>
+									<span class="pbd-exp-segment-badge" title="At least one arm has fewer than <?php echo (int) self::SEGMENT_MIN_VISITORS; ?> visitors. Rates here are too noisy to trust.">low sample</span>
+								<?php endif; ?>
+								<?php if ( ! empty( $slice['is_unknown'] ) ) : ?>
+									<span class="pbd-exp-segment-note-inline">predates source tracking</span>
+								<?php endif; ?>
+							</div>
+							<table class="widefat striped pbd-exp-results pbd-exp-segment-table">
+								<thead>
+									<tr>
+										<th class="col-variant">Variant</th>
+										<th>Visitors</th>
+										<th><?php echo esc_html( $primary_name ); ?></th>
+										<th>Rate</th>
+										<th>Lift vs control</th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ( $slice['rows'] as $i => $row ) :
+										$is_control = 0 === $i;
+									?>
+										<tr<?php echo $is_control ? ' class="row-control"' : ''; ?>>
+											<td class="col-variant">
+												<strong><?php echo esc_html( $row['label'] ); ?></strong>
+												<code><?php echo esc_html( $row['variant_key'] ); ?></code>
+												<?php if ( $is_control ) : ?><em>baseline</em><?php endif; ?>
+											</td>
+											<td><?php echo esc_html( number_format_i18n( $row['visitors'] ) ); ?></td>
+											<td><?php echo esc_html( number_format_i18n( $row['conversions'] ) ); ?></td>
+											<td><?php echo esc_html( number_format_i18n( $row['rate'] * 100, 2 ) ); ?>%</td>
+											<td>
+												<?php
+												if ( null === $row['lift'] ) {
+													echo '<span class="pbd-exp-lift--flat">&mdash;</span>';
+												} else {
+													$lift = (float) $row['lift'];
+													$cls  = $lift > 0.5 ? 'pbd-exp-lift--up' : ( $lift < -0.5 ? 'pbd-exp-lift--down' : 'pbd-exp-lift--flat' );
+													$sign = $lift > 0 ? '+' : '';
+													printf( '<span class="%s">%s%s%%</span>', esc_attr( $cls ), esc_html( $sign ), esc_html( number_format_i18n( $lift, 2 ) ) );
+												}
+												?>
+											</td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
+					<?php endforeach; ?>
+				<?php endif; ?>
+			</div>
+		</div>
+		<?php
+	}
+
 	private static function render_dashboard_actions( $experiment ) {
 		$status = $experiment['status'];
 		if ( ! in_array( $status, array( 'active', 'paused' ), true ) ) {
@@ -335,7 +446,27 @@ final class PBD_Exp_Admin_Dashboard {
 	public static function build_snapshot( $experiment ) {
 		$variants = PBD_Exp_Repo::get_variants( $experiment['id'] );
 		$metrics  = PBD_Exp_Repo::get_metrics( $experiment['id'] );
-		return self::build_report( $experiment, $variants, $metrics, array( 'from' => null, 'to' => null ) );
+		// Freeze only the bounded-cardinality breakdowns (channel + device); the
+		// unbounded source/medium tables stay live-only so the snapshot JSON stays small.
+		return self::build_report( $experiment, $variants, $metrics, array( 'from' => null, 'to' => null ), array( 'channel', 'device' ) );
+	}
+
+	private static function selected_segment() {
+		$seg = isset( $_GET['segment'] ) ? sanitize_key( wp_unslash( $_GET['segment'] ) ) : 'channel';
+		// referrer_host is a valid stored column but excluded from the UI selector (too noisy).
+		$allowed = array( 'channel', 'source', 'medium', 'device' );
+		return in_array( $seg, $allowed, true ) ? $seg : 'channel';
+	}
+
+	private static function segment_label( $col ) {
+		$labels = array(
+			'channel'       => 'Channel',
+			'source'        => 'Source',
+			'medium'        => 'Medium',
+			'device'        => 'Device',
+			'referrer_host' => 'Referrer',
+		);
+		return isset( $labels[ $col ] ) ? $labels[ $col ] : ucfirst( $col );
 	}
 
 	private static function date_window( $experiment ) {
@@ -348,7 +479,7 @@ final class PBD_Exp_Admin_Dashboard {
 		);
 	}
 
-	private static function build_report( $experiment, $variants, $metrics, $window ) {
+	private static function build_report( $experiment, $variants, $metrics, $window, $segment_cols = array() ) {
 		$active_metrics = array_values( array_filter( $metrics, function ( $m ) { return ! empty( $m['active'] ); } ) );
 
 		$total_weight = 0;
@@ -419,12 +550,124 @@ final class PBD_Exp_Admin_Dashboard {
 			);
 		}
 
+		// Traffic-source breakdowns. Built only against the primary metric
+		// (active_metrics[0]) and only when there is traffic to slice. Each
+		// requested column produces a set of slices comparing control vs variants
+		// within that segment. See build_segment().
+		$segments      = array();
+		$primary_event = '';
+		$primary_name  = '';
+		if ( ! empty( $active_metrics ) && ! empty( $segment_cols ) && $total_visitors > 0 ) {
+			$primary_event = $active_metrics[0]['event_name'];
+			$primary_name  = $active_metrics[0]['name'];
+			foreach ( $segment_cols as $col ) {
+				$segments[ $col ] = self::build_segment( $experiment, $variants, $primary_event, $col, $window );
+			}
+		}
+
 		return array(
 			'active_metrics' => $active_metrics,
 			'rows'           => $rows,
 			'total_visitors' => $total_visitors,
 			'unattributed'   => $unattributed,
 			'srm_warning'    => self::srm_warning( $variants, $per_variant_visitors, $total_weight, $total_visitors ),
+			'segments'       => $segments,
+			'segment_meta'   => array(
+				'primary_event' => $primary_event,
+				'primary_name'  => $primary_name,
+			),
+		);
+	}
+
+	/**
+	 * Pivot the grouped visitor/conversion counts for one segment column into
+	 * per-slice control-vs-variant rows. Visitors and conversions both key off
+	 * the assignment's first-touch source, so a slice is internally consistent.
+	 */
+	private static function build_segment( $experiment, $variants, $primary_event, $col, $window ) {
+		$assign_rows = PBD_Exp_Repo::count_assignments_by_segment( (int) $experiment['id'], $col, $window['from'], $window['to'] );
+		$conv_rows   = PBD_Exp_Repo::count_conversions_by_segment( (int) $experiment['id'], $primary_event, $col, $window['from'], $window['to'] );
+
+		$vis = array();            // [variant_id][segment] = visitors
+		$segment_totals = array(); // segment => total visitors across variants
+		foreach ( (array) $assign_rows as $r ) {
+			$vid = (int) $r['variant_id'];
+			$seg = (string) $r['segment'];
+			$n   = (int) $r['n'];
+			$vis[ $vid ][ $seg ] = $n;
+			$segment_totals[ $seg ] = ( isset( $segment_totals[ $seg ] ) ? $segment_totals[ $seg ] : 0 ) + $n;
+		}
+
+		$conv = array();           // [variant_id][segment] = conversions
+		foreach ( (array) $conv_rows as $r ) {
+			$conv[ (int) $r['variant_id'] ][ (string) $r['segment'] ] = (int) $r['n'];
+		}
+
+		// Order: real slices by total visitors desc, then the empty "Unknown"
+		// bucket (pre-feature assignments) pinned last regardless of volume.
+		$has_unknown = array_key_exists( '', $segment_totals );
+		unset( $segment_totals[''] );
+		arsort( $segment_totals );
+		$seg_keys = array_keys( $segment_totals );
+
+		// Unbounded dimensions (source/medium) are truncated to keep the live view readable.
+		$bounded = in_array( $col, array( 'channel', 'device' ), true );
+		if ( ! $bounded && count( $seg_keys ) > self::SEGMENT_MAX_ROWS ) {
+			$seg_keys = array_slice( $seg_keys, 0, self::SEGMENT_MAX_ROWS );
+		}
+		if ( $has_unknown ) {
+			$seg_keys[] = '';
+		}
+
+		$values = array();
+		foreach ( $seg_keys as $seg ) {
+			$slice_rows     = array();
+			$slice_visitors = 0;
+			$baseline_rate  = null;
+			$low_sample     = false;
+
+			foreach ( $variants as $i => $variant ) {
+				$vid  = (int) $variant['id'];
+				$v    = isset( $vis[ $vid ][ $seg ] ) ? (int) $vis[ $vid ][ $seg ] : 0;
+				$c    = isset( $conv[ $vid ][ $seg ] ) ? (int) $conv[ $vid ][ $seg ] : 0;
+				$rate = $v > 0 ? $c / $v : 0;
+
+				if ( 0 === $i ) {
+					$baseline_rate = $rate;
+					$lift = null;
+				} else {
+					$lift = ( null !== $baseline_rate && $baseline_rate > 0 ) ? ( ( $rate - $baseline_rate ) / $baseline_rate ) * 100 : null;
+				}
+
+				if ( $v < self::SEGMENT_MIN_VISITORS ) {
+					$low_sample = true;
+				}
+				$slice_visitors += $v;
+
+				$slice_rows[] = array(
+					'variant_id'  => $vid,
+					'variant_key' => $variant['variant_key'],
+					'label'       => $variant['label'],
+					'visitors'    => $v,
+					'conversions' => $c,
+					'rate'        => $rate,
+					'lift'        => $lift,
+				);
+			}
+
+			$values[] = array(
+				'segment'    => '' === $seg ? 'Unknown' : $seg,
+				'is_unknown' => '' === $seg,
+				'visitors'   => $slice_visitors,
+				'low_sample' => $low_sample,
+				'rows'       => $slice_rows,
+			);
+		}
+
+		return array(
+			'col'    => $col,
+			'label'  => self::segment_label( $col ),
+			'values' => $values,
 		);
 	}
 
